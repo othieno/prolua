@@ -1,0 +1,5 @@
+# Because the documentation is not licensed and incomplete, ignore it for now.
+implementation.odt
+
+# Ignore prototype code and documentation.
+prototype
