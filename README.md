@@ -8,7 +8,7 @@ Check out the [__documentation__](https://github.com/supranove/prolua/raw/master
 Requirements
 ------------
 Prolua requires [SWI-Prolog](http://www.swi-prolog.org/Download.html) to be able to execute
-the interpreter, and an installation of [Lua](http://www.lua.org/download.html) to run __lua2prolog.lua__, which
+the interpreter, and an installation of [Lua 5.1 or better](http://www.lua.org/download.html) to run __lua2prolog.lua__, which
 converts Lua source code into Prolog.
 
 
