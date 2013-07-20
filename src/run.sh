@@ -31,5 +31,5 @@ fi
 # Convert the Lua source code into prolog and store the output in a randomly
 # generated file. When the output is created, interpret it.
 LUA_OUTPUT="/tmp/prolog.lua.$$.output"
-lua lua2prolog.lua "$LUA_INPUT" > $LUA_OUTPUT
+lua lua2prolog.lua "$1" > $LUA_OUTPUT
 swipl -q -f prolua.pl -g main -- $LUA_OUTPUT
