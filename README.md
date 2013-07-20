@@ -2,7 +2,7 @@ PROLUA
 ======
 
 Prolua is a simple [Lua](http://www.lua.org/) interpreter written in [Prolog](http://en.wikipedia.org/wiki/Prolog).
-Check out the [__documentation__](https://github.com/supranove/prolua/blob/master/implementation.pdf) for more details.
+Check out the [__documentation__](https://github.com/supranove/prolua/raw/master/implementation.pdf) for more details.
 
 
 Requirements
