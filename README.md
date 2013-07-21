@@ -11,9 +11,8 @@ Prolua requires [SWI-Prolog](http://www.swi-prolog.org/Download.html) to be able
 the interpreter, and an installation of [Lua 5.1 or better](http://www.lua.org/download.html) to run __lua2prolog.lua__, which
 converts Lua source code into Prolog.
 
-__lua2prolog__ uses a few parsing libraries taken from the [Metalua 0.4.1 RC1](http://metalua.luaforge.net/) compiler written and
+__lua2prolog__ uses a few parsing [libraries](https://github.com/supranove/prolua/blob/master/src/metalua/) taken from the [Metalua 0.4.1 RC1](http://metalua.luaforge.net/) compiler written and
 [__licensed__](https://github.com/supranove/prolua/blob/master/src/metalua/LICENSE.md) by Fabien Fleutot.
-These files can be found [here](https://github.com/supranove/prolua/blob/master/src/metalua/).
 
 
 Execution
