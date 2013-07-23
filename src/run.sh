@@ -33,10 +33,10 @@ fi
 LUA_OUTPUT="/tmp/prolua.$$.output"
 function clean()
 {
-	if [[ -e "$LUA_OUTPUT" ]]
-	then
-		rm "$LUA_OUTPUT"
-	fi
+   if [[ -e "$LUA_OUTPUT" ]]
+   then
+      rm "$LUA_OUTPUT"
+   fi
 }
 trap clean INT TERM EXIT
 

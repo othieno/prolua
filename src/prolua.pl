@@ -29,6 +29,9 @@ main :-
    append(_, [--, Filename | _], Arguments), !,
    consult(Filename),
    program(Statements),
+   write('CALL STACK:\n'),
+   printCallStack(Statements, 1),
+   write('END OF CALL STACK.\n'),
    main(Statements),
    halt.
 
@@ -38,5 +41,12 @@ main :-
 main(Statements) :-
    consult('interpreter.pl'),
    evaluate(_, _, Statements, Result, Memory),
-   write('Result: '), write(Result), nl,
-   write('Memory: '), write(Memory), nl.
+   write('RESULT: '), write(Result), nl,
+   write('ENVIRONMENT: '), write(Memory), nl.
+
+% Print the call stack.
+printCallStack([], _).
+printCallStack([Statement | Statements], InstructionNumber) :-
+   write(InstructionNumber), write(' :: '), write(Statement), nl,
+   NextInstructionNumber is InstructionNumber + 1,
+   printCallStack(Statements, NextInstructionNumber).
