@@ -93,9 +93,9 @@ end
 
 -- Convert a string value into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'stringtype(s)', where s is a quoted string.
+-- Returns the string 'stringtype(s)', where s is a single quoted ('') string.
 convert["String"] = function(ASTNode)
-	return "stringtype(\"" .. ASTNode[1] .. "\")"
+	return "stringtype('" .. ASTNode[1] .. "')"
 end
 
 -- Convert a function definition node into Prolog.
