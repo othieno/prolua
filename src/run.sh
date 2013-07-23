@@ -28,8 +28,21 @@ then
    exit 1
 fi
 
-# Convert the Lua source code into prolog and store the output in a randomly
-# generated file. When the output is created, interpret it.
+# A randomly generated name for our output file and a cleanup function to delete
+# it when the script is done.
 LUA_OUTPUT="/tmp/prolua.$$.output"
+function clean()
+{
+	if [[ -e "$LUA_OUTPUT" ]]
+	then
+		rm "$LUA_OUTPUT"
+	fi
+}
+trap clean INT TERM EXIT
+
+# Convert the Lua source code into prolog and store it in the output file, then
+# pass the output file to prolua to be interpreted.
 lua lua2prolog.lua "$1" > $LUA_OUTPUT
 swipl -q -f prolua.pl -g main -- $LUA_OUTPUT
+
+exit 0
