@@ -71,16 +71,17 @@ expr_list = gg.list{ _expr, separators = "," }
 --------------------------------------------------------------------------------
 -- Helpers for function applications / method applications
 --------------------------------------------------------------------------------
-local func_args_content = gg.list { 
+func_args_content = gg.list { 
    name = "function arguments",
    _expr, separators = ",", terminators = ")" } 
 
 -- Used to parse methods
-local method_args = gg.multisequence{
+method_args = gg.multisequence{
    name = "function argument(s)",
    { "{", table_content, "}" },
    { "(", func_args_content, ")", builder = fget(1) },
-   default = function(lx) local r = opt_string(lx); return r and {r} or { } end }
+   { "+{", quote_content, "}" }, 
+   function(lx) local r = opt_string(lx); return r and {r} or { } end }
 
 --------------------------------------------------------------------------------
 -- [func_val] parses a function, from opening parameters parenthese to
@@ -92,7 +93,7 @@ local method_args = gg.multisequence{
 -- definitions.
 --------------------------------------------------------------------------------
 func_params_content = gg.list{ name="function parameters",
-   gg.multisequence{ { "...", builder = "Dots" }, default = id },
+   gg.multisequence{ { "...", builder = "Dots" }, id },
    separators  = ",", terminators = {")", "|"} } 
 
 local _func_params_content = function (lx) return func_params_content(lx) end
@@ -105,10 +106,19 @@ local _func_val = function (lx) return func_val(lx) end
 --------------------------------------------------------------------------------
 -- Default parser for primary expressions
 --------------------------------------------------------------------------------
-local function id_or_literal (lx)
+function id_or_literal (lx)
    local a = lx:next()
    if a.tag~="Id" and a.tag~="String" and a.tag~="Number" then
-      gg.parse_error (lx, "Unexpected expr token %s", _G.table.tostring(a))
+      local msg
+      if a.tag=='Eof' then
+         msg = "End of file reached when an expression was expected"
+      elseif a.tag=='Keyword' then
+         msg = "An expression was expected, and `"..a[1]..
+            "' can't start an expression"
+      else
+         msg = "Unexpected expr token " .. _G.table.tostring (a, 'nohash')
+      end
+      gg.parse_error (lx, msg)
    end
    return a
 end
@@ -137,7 +147,8 @@ local function op_ne(a, _, b)
    -- suppressed from the official AST grammar (although still supported
    -- in practice by the compiler).
    -- return { tag="Op", "ne", a, b }
-   return { tag="Op", "not", { tag="Op", "eq", a, b } }
+   return { tag="Op", "not", { tag="Op", "eq", a, b, lineinfo= {
+            first = a.lineinfo.first, last = b.lineinfo.last } } }
 end
    
 
@@ -161,7 +172,7 @@ expr = gg.expr { name = "expression",
       { "false",                   builder = "False" },
       { "...",                     builder = "Dots" },
       table,
-      default = id_or_literal },
+      id_or_literal },
 
    infix = { name="expr infix op",
       { "+",  prec = 60, builder = opf2 "add"  },
@@ -198,5 +209,5 @@ expr = gg.expr { name = "expression",
          return {tag="Invoke", obj, id2string(post[1]), unpack(post[2])} end},
       { "+{", quote_content, "}", builder = function (f, arg) 
          return {tag="Call", f,  arg[1] } end },
-      default = { parse=mlp.opt_string, builder = function(f, arg) 
+      default = { name="opt_string_arg", parse = mlp.opt_string, builder = function(f, arg) 
          return {tag="Call", f, arg } end } } }

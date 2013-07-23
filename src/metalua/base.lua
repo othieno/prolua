@@ -7,9 +7,7 @@
 ----------------------------------------------------------------------
 
 if not metalua then rawset(getfenv(), 'metalua', { }) end
-metalua.version             = "v-0.4"
-metalua.ext_compiler_prefix = 'extension-compiler.'
-metalua.ext_runtime_prefix   = 'extension-runtime.'
+metalua.version             = "v-0.5"
 
 if not rawpairs then
    rawpairs, rawipairs, rawtype = pairs, ipairs, type
@@ -55,7 +53,7 @@ function max (a, ...)
    for n in values{...} do if n>a then a=n end end
    return a
 end
-      
+
 function o (...)
    local args = {...}
    local function g (...)
@@ -65,11 +63,14 @@ function o (...)
    end
    return g
 end
-         
+
 function id (...) return ... end
 function const (k) return function () return k end end
 
 function printf(...) return print(string.format(...)) end
+function eprintf(...) 
+   io.stderr:write(string.format(...).."\n") 
+end
 
 function ivalues (x)
    assert(type(x)=='table', 'ivalues() expects a table')
@@ -81,20 +82,20 @@ function ivalues (x)
 end
 
 
-function values (x) 
+function values (x)
    assert(type(x)=='table', 'values() expects a table')
    local function iterator (state)
       local it
-      state.content, it = next(state.list, state.content) 
+      state.content, it = next(state.list, state.content)
       return it
    end
    return iterator, { list = x }
 end
 
-function keys (x) 
+function keys (x)
    assert(type(x)=='table', 'keys() expects a table')
    local function iterator (state)
-      local it = next(state.list, state.content) 
+      local it = next(state.list, state.content)
       state.content = it
       return it
    end
