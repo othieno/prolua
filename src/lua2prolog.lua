@@ -221,7 +221,7 @@ end
 -- param ASTNode the node to convert.
 -- Returns the string 'variable(n)', where n is the variable name.
 convert["Id"] = function(ASTNode)
-	return "variable($" .. ASTNode[1] .. ")"
+	return "variable(id_" .. ASTNode[1] .. ")"
 end
 
 -- Convert a local variable node into Prolog.
@@ -238,7 +238,7 @@ convert["Local"] = function(ASTNode)
 
 	-- Get the variables.
 	for i = 1, nDeclaredVariables do
-		output = output .. "localvariable($" .. ((ASTNode[1])[i])[1]
+		output = output .. "localvariable(id_" .. ((ASTNode[1])[i])[1]
 
 		-- Does the variable have an initial value?
 		if (i <= nDeclaredvalues) then
