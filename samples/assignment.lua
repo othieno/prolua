@@ -20,15 +20,15 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
--- Assignment operations.
-local u, v, w, x = 1, 2, 3, -(-(-(4)));
-U, V, W, X = 100, 200, 300, 400;
+-- Declaration of global variables.
+h, e, l, L, o = 10, true, "Hello, World", nil, {1, 2, 3}
 
--- Perform multiple operations and assign the value to X.
-X = U + V * W - X / u - v * w;
+-- Declaration of local variables.
+do
+   local w, o, r, l, d = -3, ..., (true and false), {h, e, l, l, o}, 2 < 3
 
--- Swap two values.
-x, X = X, x;
+	-- Swap values.
+	h, e, l, L, o = w, o, r, l, d
+end
 
--- Return the result. It should be "1, 2, 3, 59694, 100, 200, 300, -4".
-return u, v, w, x, U, V, W, X;
+return h, e, l, L, o

@@ -20,9 +20,18 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
--- A simple function.
+-- A simple function to return the square of a value.
 function square(x)
 	return x * x;
 end;
 
-return square(26);
+-- A function to calculate the factorial of a given value.
+factorial = function(n)
+	if (n > 0) then
+		return n * factorial(n - 1)
+	else
+		return 1
+	end
+end
+
+return square(26), factorial(6);
