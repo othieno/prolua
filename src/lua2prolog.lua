@@ -166,7 +166,7 @@ convert["Do"] = function(ASTNode)
 			block = block .. ", "
 		end
 	end
-	return "do(block([" .. block .. "])"
+	return "do(block([" .. block .. "]))"
 end
 
 -- Convert an 'if' node into Prolog.
