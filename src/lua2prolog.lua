@@ -93,9 +93,10 @@ end
 
 -- Convert a string value into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'stringtype(s)', where s is a single quoted ('') string.
+-- Returns the string 'stringtype(s)', where 's' is a single quoted ('') string.
+-- 's' is also formatted to handle escape characters.
 convert["String"] = function(ASTNode)
-   return "stringtype('" .. ASTNode[1] .. "')"
+   return "stringtype('" .. string.gsub(ASTNode[1], "'", "''") .. "')"
 end
 
 -- Convert a function definition node into Prolog.
@@ -195,7 +196,7 @@ end
 -- Returns the string 'assign(LHS, RHS)', where LHS and RHS are a list of
 -- left and right hand side expressions, respectively.
 convert["Set"] = function(ASTNode)
-   local output = "";
+   local output = ""
 
    -- Create the left-hand side expressions.
    for i = 1, #ASTNode[1] do
@@ -214,7 +215,7 @@ convert["Set"] = function(ASTNode)
          output = output .. ", "
       end
    end
-   return "assign([" .. output .. "])";
+   return "assign([" .. output .. "])"
 end
 
 -- Convert an identifier (variable) node into Prolog.
@@ -242,7 +243,7 @@ convert["Local"] = function(ASTNode)
 
       -- Does the variable have an initial value?
       if (i <= nDeclaredvalues) then
-         output = output .. ", " .. ASTNodeToProlog((ASTNode[2])[i]);
+         output = output .. ", " .. ASTNodeToProlog((ASTNode[2])[i])
       end
       -- Close the parenthesis.
       if (i < nDeclaredVariables) then
@@ -275,7 +276,7 @@ convert["Op"] = function(ASTNode)
          operands = operands .. ", "
       end
    end
-   return name .. "(" .. operands .. ")";
+   return name .. "(" .. operands .. ")"
 end
 
 -- Convert a function call node into Prolog.
@@ -284,7 +285,7 @@ end
 -- and ps is a list of arguments.
 convert["Call"] = function(ASTNode)
    -- Create function arguments.
-   local arguments = "";
+   local arguments = ""
    for i = 2, #ASTNode do
       arguments = arguments .. ASTNodeToProlog(ASTNode[i])
       if (i < #ASTNode) then
@@ -298,14 +299,14 @@ end
 -- param ASTNode the node to convert.
 -- Returns the string 'return(es)' where es is a list of expressions.
 convert["Return"] = function(ASTNode)
-   local expressions = "";
+   local expressions = ""
 
    for i = 1, #ASTNode do
-      expressions = expressions .. ASTNodeToProlog(ASTNode[i]);
+      expressions = expressions .. ASTNodeToProlog(ASTNode[i])
       if (i < #ASTNode) then
          expressions = expressions .. ", "
       end
-   end;
+   end
    return "return([" .. expressions .. "])"
 end
 
@@ -329,17 +330,17 @@ function ASTNodeToProlog(ASTNode)
 end
 
 -- Load input file.
-local filename = ...;
+local filename = ...
 if not filename then
-   io.stderr:write("usage: lua2prolog filename.lua\n");
-   os.exit(1);
+   io.stderr:write("usage: lua2prolog filename.lua\n")
+   os.exit(1)
 end
-local file = assert(io.open (filename, 'r'));
-local input = file:read "*a";
-file:close();
+local file = assert(io.open (filename, 'r'))
+local input = file:read "*a"
+file:close()
 input = input:gsub("^#[^\r\n]*", "") -- remove any shebang
 
 -- Get the program's abstract syntax tree and recursively convert it into Prolog.
 _G.mlc = {} -- make gg happy
 local mlp = assert(_G.mlp)
-print("program([" .. ASTNodeToProlog(mlp.chunk(mlp.lexer:newstream(input))) .. "]).");
+print("program([" .. ASTNodeToProlog(mlp.chunk(mlp.lexer:newstream(input))) .. "]).")
