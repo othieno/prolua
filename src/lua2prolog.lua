@@ -246,16 +246,35 @@ end
 
 -- Convert an operator node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'operatorname(e)' in the case of a unary operator or
--- 'operatorname(elhs, erhs)' in the case of a binary operator, where
--- operatorname is the name of the operator and e, elhs and erhs are expressions.
+-- Returns the string 'unop(n, e)' in the case of a unary operator or
+-- 'binop(n, elhs, erhs)' in the case of a binary operator, where n is the name
+-- of the operator, and e, elhs and erhs are expressions.
 convert["Op"] = function(ASTNode)
-   -- Get operator name.
+   -- Get the operator name.
    local name = ASTNode[1]
 
-   -- Change 'unm' to 'negative' to match the defined syntax.
-   if (name == "unm") then
-      name = "negative"
+   -- Get the operator's parity. Once the parity has been established, change the
+   -- operator name to match the documented syntax (see documentation) if need be.
+   local parity = ""
+   local nOperands = #ASTNode - 1
+   if (nOperands == 1) then
+      parity = "unop"
+
+      if     (name == "unm") then name = "negative"
+      elseif (name == "not") then name = "not"
+      elseif (name == "len") then name = "length"
+      end
+   else
+      parity = "binop"
+
+      if  (name == "concat") then name = "concatenate"
+      elseif (name ==  "eq") then name = "equal"
+      elseif (name == "sub") then name = "subtract"
+      elseif (name == "mul") then name = "multiply"
+      elseif (name == "div") then name = "divide"
+      elseif (name == "pow") then name = "exponent"
+      elseif (name == "mod") then name = "modulo"
+      end
    end
 
    -- Convert the operands.
@@ -266,7 +285,7 @@ convert["Op"] = function(ASTNode)
          operands = operands .. ", "
       end
    end
-   return name .. "(" .. operands .. ")"
+   return parity .. "(" .. name .. ", " .. operands .. ")"
 end
 
 -- Convert a function call node into Prolog.
