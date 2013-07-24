@@ -98,9 +98,17 @@ convert["Function"] = function(ASTNode)
    local nParameters = #ASTNode[1]
    if (nParameters > 0) then
       for i = 1, nParameters do
-         parameters = parameters .. ASTNodeToProlog(ASTNode[i])
-         if (i < nParameters) then
-            parameters = parameters .. ", "
+         -- If the node has a length greater than one, then a variable argument is included.
+         -- Stop processing after the node. (This is a bug in the generated tree).
+         local nodeLength = #ASTNode[i]
+         if (nodeLength > 0) then
+            parameters = parameters .. ASTNodeToProlog(ASTNode[i])
+            if (nodeLength > 1) then
+               break
+            end
+            if (i < nParameters) then
+               parameters = parameters .. ", "
+            end
          end
       end
    end
@@ -128,6 +136,13 @@ convert["Table"] = function(ASTNode)
       end
    end
    return "tabletype([" .. output .. "])"
+end
+
+-- Convert a variable argument type node into Prolog.
+-- param ASTNode the node to be converted.
+-- Returns the string 'varargtype'.
+convert["Dots"] = function(ASTNode)
+   return "varargtype(vararg)"
 end
 
 -- Convert a pair into Prolog.
@@ -374,12 +389,7 @@ end
 
 -- ???
 convert["Invoke"] = function(ASTNode)
-   return "'TO::IMPLEMENT::INVOKE'"
-end
-
--- ???
-convert["Dots"] = function(ASTNode)
-   return "'TO::IMPLEMENT::DOTS'"
+   return "unsupported(metatable_invoke)"
 end
 
 -- This function converts an AST's node into Prolog, in a format that
