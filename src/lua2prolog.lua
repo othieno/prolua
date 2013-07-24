@@ -440,6 +440,22 @@ convert["Break"] = function(ASTNode)
    return "break"
 end
 
+-- Convert a local function definition node into Prolog.
+-- param ASTNode the node to convert.
+-- Returns the string 'localvariable(n, b)' where n is the variable name and
+-- b is the function body.
+convert["Localrec"] = function(ASTNode)
+	-- Get the variable name and remove the closing parenthesis.
+	local output = ASTNodeToProlog(ASTNode[1])
+	output = output.sub(output, 1, string.len(output) - 1) .. ", "
+
+	-- Then add an initial value.
+	output = output .. ASTNodeToProlog(ASTNode[2]) .. ")"
+
+	-- To finish up, prepend 'local' to the output.
+	return "local" .. output
+end
+
 -- This function converts an AST's node into Prolog, in a format that
 -- can be parsed and interpreted by Prolua.
 -- param ASTNode the abstract syntax tree node to convert.
