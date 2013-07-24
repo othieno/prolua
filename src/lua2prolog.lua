@@ -332,7 +332,7 @@ end
 -- Returns the string 'while(e, b)' where e is an expression that evaluates into a loop
 -- condition and b is the instruction block that is executed while the condition is true.
 convert["While"] = function(ASTNode)
-   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", block([" .. ASTNodeToProlog(ASTNode[2]) .. "]))";
+   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", block([" .. ASTNodeToProlog(ASTNode[2]) .. "]))"
 end
 
 -- Convert a repeat-until loop node into Prolog.
@@ -340,7 +340,7 @@ end
 -- Returns the string 'repeat(e, b)' where e is an expression that evaluates into a
 -- condition and b is the instruction block that is executed until the condition is met.
 convert["Repeat"] = function(ASTNode)
-   return "'TO::IMPLEMENT::REPEAT(E, B)'"
+   return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", block([" .. ASTNodeToProlog(ASTNode[1]) .. "]))"
 end
 
 -- Convert a numerical for loop node into Prolog.
