@@ -192,7 +192,7 @@ convert["If"] = function(ASTNode)
    -- Create bfalse iff there is one.
    local bfalse = ""
    if (#ASTNode > 2) then
-		bfalse = ASTNodeToProlog(ASTNode[#ASTNode])
+      bfalse = ASTNodeToProlog(ASTNode[#ASTNode])
    end
    return output .. "block([" .. bfalse .. "])" .. string.rep(")", #ASTNode/2)
 end
@@ -389,6 +389,20 @@ convert["Fornum"] = function(ASTNode)
    "for(" .. variable .. ", " .. start .. ", " .. stop .. ", " .. increment .. ", " .. block .. ")"
 end
 
+-- Convert a generic for loop node into Prolog.
+-- param ASTNode the node to be converted.
+-- Returns the string 'for(vs, e, b)' where vs is a list of variables, e is an expression
+-- that evaluates into a list of values that will be assigned to the variables, and b an
+-- instruction block.
+convert["Forin"] = function(ASTNode)
+   -- Get the variable, and the initial and end values.
+   local variables = ASTNodeToProlog(ASTNode[1])
+   local expressions = ASTNodeToProlog(ASTNode[2])
+   local block = ASTNodeToProlog(ASTNode[3])
+
+   return "for([" .. variables .. "], " .. expressions .. ", block([" .. block .. "]))"
+end
+
 -- ???
 convert["Invoke"] = function(ASTNode)
    return "unsupported(metatable_invoke)"
@@ -398,7 +412,7 @@ end
 -- param ASTNode the node to convert.
 -- Returns the string 'break'.
 convert["Break"] = function(ASTNode)
-	return "break"
+   return "break"
 end
 
 -- This function converts an AST's node into Prolog, in a format that
