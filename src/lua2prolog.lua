@@ -403,9 +403,34 @@ convert["Forin"] = function(ASTNode)
    return "for([" .. variables .. "], " .. expressions .. ", block([" .. block .. "]))"
 end
 
--- ???
+-- Convert an object-oriented call node into Prolog.
+-- param ASTNode the node to be converted.
+-- Since the colon operator is nothing more than a syntactic sugar, this
+-- function returns the string 'functioncall(v, as)', where v is the variable
+-- that references the function to call, and as is a list of arguments, with
+-- the first being the object that made the function call.
 convert["Invoke"] = function(ASTNode)
-   return "unsupported(metatable_invoke)"
+	local tableName = ASTNodeToProlog(ASTNode[1])
+	local functionName = ASTNodeToProlog(ASTNode[2])
+
+	-- Create the accessor. This will be used to obtain the function body.
+	local access = "access(" .. tableName .. ", " .. functionName .. ")"
+
+	-- Create the function arguments.
+	local arguments = ""
+	local nArguments = #ASTNode - 2
+	if (nArguments > 0) then
+		arguments = ", "
+		for i = 3, #ASTNode do
+			arguments = arguments .. ASTNodeToProlog(ASTNode[i])
+			if (i < #ASTNode) then
+				arguments = arguments .. ", "
+			end
+		end
+	end
+	-- Return the result, while not forgeting to add the caller argument at the
+	-- front of the argument list.
+   return "functioncall(" .. access .. ", [" .. tableName .. arguments .. "])"
 end
 
 -- Convert a break statement node into Prolog.
