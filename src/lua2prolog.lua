@@ -49,19 +49,8 @@ require "mlp_stat"
 require "mlp_ext"
 
 -- An associative array containing references to the functions that'll convert
--- a specific type of node into prolog, based on its tag.
-function toImplement(ASTNode)
-   return "'TO::IMPLEMENT::" .. ASTNode.tag .. "'"
-end
-convert =
-{
-   ["Dots"] = toImplement,
-   ["Index"] = toImplement,
-   ["While"] = toImplement,
-   ["Repeat"] = toImplement,
-   ["Invoke"] = toImplement,
-   ["Fornum"] = toImplement,
-}
+-- a specific type of node into Prolog, based on its tag.
+convert = {}
 
 -- Convert a nil value into Prolog.
 -- param ASTNode the node to convert.
@@ -101,8 +90,8 @@ end
 
 -- Convert a function definition node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'functiontype(ps, b)' where ps is a list of parameters
--- and b is the function body.
+-- Returns the string 'functionbody(ps, b)' where ps is a list of parameters
+-- and b is the function's instruction block.
 convert["Function"] = function(ASTNode)
    -- Create function parameters.
    local parameters = ""
@@ -115,7 +104,7 @@ convert["Function"] = function(ASTNode)
          end
       end
    end
-   return "functiontype([" .. parameters .. "], block([" .. ASTNodeToProlog(ASTNode[2]) .. "]))"
+   return "functionbody([" .. parameters .. "], block([" .. ASTNodeToProlog(ASTNode[2]) .. "]))"
 end
 
 -- Convert a table type node into Prolog.
@@ -229,7 +218,7 @@ end
 -- param ASTNode the node to convert.
 -- Returns the string 'localvariable(n, v)', where n is the variable name and v is
 -- the variable's initial value; or 'localvariable(n)', where no initial value is
--- specified, in which case it is set to 'nil'.
+-- specified, in which case it is implicitly set to 'nil'.
 convert["Local"] = function(ASTNode)
    local output = ""
 
@@ -257,7 +246,8 @@ end
 
 -- Convert an operator node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'operatorname(e)' or 'operatorname(elhs, erhs)', where
+-- Returns the string 'operatorname(e)' in the case of a unary operator or
+-- 'operatorname(elhs, erhs)' in the case of a binary operator, where
 -- operatorname is the name of the operator and e, elhs and erhs are expressions.
 convert["Op"] = function(ASTNode)
    -- Get operator name.
@@ -281,8 +271,8 @@ end
 
 -- Convert a function call node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'functioncall(variable(n), ps)' where n is the name of the function
--- and ps is a list of arguments.
+-- Returns the string 'functioncall(v, ps)' where v is the variable referencing the function
+-- and ps is a list of function arguments.
 convert["Call"] = function(ASTNode)
    -- Create function arguments.
    local arguments = ""
@@ -308,6 +298,52 @@ convert["Return"] = function(ASTNode)
       end
    end
    return "return([" .. expressions .. "])"
+end
+
+-- Convert a table access node into Prolog.
+-- param ASTNode the node to be converted.
+-- Returns the string 'access(t, k)' where t is an expression that evaluates into a
+-- table and k is an expression that evaluates into a table key.
+convert["Index"] = function(ASTNode)
+	return "'TO::IMPLEMENT::ACCESS(T, K)'"
+end
+
+-- Convert a while loop node into Prolog.
+-- param ASTNode the node to be converted.
+-- Returns the string 'while(e, b)' where e is an expression that evaluates into a loop
+-- condition and b is the instruction block that is executed while the condition is true.
+convert["While"] = function(ASTNode)
+	return "'TO::IMPLEMENT::WHILE(E, B)'"
+end
+
+-- Convert a repeat-until loop node into Prolog.
+-- param ASTNode the node to be converted.
+-- Returns the string 'repeat(e, b)' where e is an expression that evaluates into a
+-- condition and b is the instruction block that is executed until the condition is met.
+convert["Repeat"] = function(ASTNode)
+	return "'TO::IMPLEMENT::REPEAT(E, B)'"
+end
+
+-- Convert a numerical for loop node into Prolog.
+-- param ASTNode the node to be converted.
+-- Returns the string 'for(v, i, e, s, b)' where v is the count variable, i is an
+-- expression that evaluates into a numbertype and which will be the count variable's
+-- initial value, e an expression that evaluates into a numbertype and will be the
+-- count variable's stop value, s an expression that evaluates into a numbertype
+-- which determines the count variable's step value, and b the instruction block that
+-- is executed while the count variable has not reached it's end value.
+convert["Fornum"] = function(ASTNode)
+	return "'TO::IMPLEMENT::FOR(V, I, E, S, B)'"
+end
+
+-- ???
+convert["Invoke"] = function(ASTNode)
+	return "'TO::IMPLEMENT::INVOKE'"
+end
+
+-- ???
+convert["Dots"] = function(ASTNode)
+	return "'TO::IMPLEMENT::DOTS'"
 end
 
 -- This function converts an AST's node into Prolog, in a format that
