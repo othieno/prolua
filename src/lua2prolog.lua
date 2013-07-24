@@ -189,10 +189,12 @@ convert["If"] = function(ASTNode)
       output .. "if(" .. ASTNodeToProlog(ASTNode[i]) ..
       ", block([" .. ASTNodeToProlog(ASTNode[i + 1]) .. "]), "
    end
-   -- Create bfalse.
-   local bfalse = "block([" .. ASTNodeToProlog(ASTNode[#ASTNode]) .. "])"
-
-   return output .. bfalse .. string.rep(")", #ASTNode/2)
+   -- Create bfalse iff there is one.
+   local bfalse = ""
+   if (#ASTNode > 2) then
+		bfalse = ASTNodeToProlog(ASTNode[#ASTNode])
+   end
+   return output .. "block([" .. bfalse .. "])" .. string.rep(")", #ASTNode/2)
 end
 
 -- Convert an assignment node into Prolog.
