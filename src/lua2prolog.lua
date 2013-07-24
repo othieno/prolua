@@ -392,6 +392,13 @@ convert["Invoke"] = function(ASTNode)
    return "unsupported(metatable_invoke)"
 end
 
+-- Convert a break statement node into Prolog.
+-- param ASTNode the node to convert.
+-- Returns the string 'break'.
+convert["Break"] = function(ASTNode)
+	return "break"
+end
+
 -- This function converts an AST's node into Prolog, in a format that
 -- can be parsed and interpreted by Prolua.
 -- param ASTNode the abstract syntax tree node to convert.
