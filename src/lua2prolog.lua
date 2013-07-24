@@ -85,7 +85,22 @@ end
 -- Returns the string 'stringtype(s)', where 's' is a single quoted ('') string.
 -- 's' is also formatted to handle escape characters.
 convert["String"] = function(ASTNode)
-   return "stringtype('" .. string.gsub(ASTNode[1], "'", "''") .. "')"
+	local formattedOutput = string.format("%s", ASTNode[1])
+
+	-- Remove quotation.
+	formattedOutput = formattedOutput:sub(2, string.len(formattedOutput) - 1)
+
+	formattedOutput = formattedOutput
+	:gsub("\a", "\\a")
+	:gsub("\b", "\\b")
+	:gsub("\f", "\\f")
+	:gsub("\n", "\\n")
+	:gsub("\r", "\\r")
+	:gsub("\t", "\\t")
+	:gsub("\v", "\\v")
+	:gsub("'", "''")
+
+   return "stringtype('" .. formattedOutput .. "')"
 end
 
 -- Convert a function definition node into Prolog.
