@@ -305,7 +305,7 @@ end
 -- Returns the string 'access(t, k)' where t is an expression that evaluates into a
 -- table and k is an expression that evaluates into a table key.
 convert["Index"] = function(ASTNode)
-	return "'TO::IMPLEMENT::ACCESS(T, K)'"
+   return "access(" .. ASTNodeToProlog(ASTNode[1]) .. ", " .. ASTNodeToProlog(ASTNode[2]) .. ")"
 end
 
 -- Convert a while loop node into Prolog.
@@ -313,7 +313,7 @@ end
 -- Returns the string 'while(e, b)' where e is an expression that evaluates into a loop
 -- condition and b is the instruction block that is executed while the condition is true.
 convert["While"] = function(ASTNode)
-	return "'TO::IMPLEMENT::WHILE(E, B)'"
+   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", block([" .. ASTNodeToProlog(ASTNode[2]) .. "]))";
 end
 
 -- Convert a repeat-until loop node into Prolog.
@@ -321,7 +321,7 @@ end
 -- Returns the string 'repeat(e, b)' where e is an expression that evaluates into a
 -- condition and b is the instruction block that is executed until the condition is met.
 convert["Repeat"] = function(ASTNode)
-	return "'TO::IMPLEMENT::REPEAT(E, B)'"
+   return "'TO::IMPLEMENT::REPEAT(E, B)'"
 end
 
 -- Convert a numerical for loop node into Prolog.
@@ -333,17 +333,17 @@ end
 -- which determines the count variable's step value, and b the instruction block that
 -- is executed while the count variable has not reached it's end value.
 convert["Fornum"] = function(ASTNode)
-	return "'TO::IMPLEMENT::FOR(V, I, E, S, B)'"
+   return "'TO::IMPLEMENT::FOR(V, I, E, S, B)'"
 end
 
 -- ???
 convert["Invoke"] = function(ASTNode)
-	return "'TO::IMPLEMENT::INVOKE'"
+   return "'TO::IMPLEMENT::INVOKE'"
 end
 
 -- ???
 convert["Dots"] = function(ASTNode)
-	return "'TO::IMPLEMENT::DOTS'"
+   return "'TO::IMPLEMENT::DOTS'"
 end
 
 -- This function converts an AST's node into Prolog, in a format that
