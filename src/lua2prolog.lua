@@ -349,10 +349,27 @@ end
 -- expression that evaluates into a numbertype and which will be the count variable's
 -- initial value, e an expression that evaluates into a numbertype and will be the
 -- count variable's stop value, s an expression that evaluates into a numbertype
--- which determines the count variable's step value, and b the instruction block that
--- is executed while the count variable has not reached it's end value.
+-- which determines the count variable's increment value, and b the instruction block
+-- that is executed while the count variable has not reached it's end value.
 convert["Fornum"] = function(ASTNode)
-   return "'TO::IMPLEMENT::FOR(V, I, E, S, B)'"
+   -- Get the variable, and the initial and end values.
+   local variable = ASTNodeToProlog(ASTNode[1])
+   local start = ASTNodeToProlog(ASTNode[2])
+   local stop = ASTNodeToProlog(ASTNode[3])
+
+   -- Get the increment value. If this value is not specified, then
+   -- it is implicitly set to numbertype(1).
+   local increment = "numbertype(1)"
+   local nodeLength = #ASTNode
+   if (nodeLength > 4) then
+      increment = ASTNodeToProlog(ASTNode[4])
+   end
+
+   -- Get the instruction block.
+   local block = "block([" .. ASTNodeToProlog(ASTNode[nodeLength]) .. "])"
+
+   return
+   "for(" .. variable .. ", " .. start .. ", " .. stop .. ", " .. increment .. ", " .. block .. ")"
 end
 
 -- ???
