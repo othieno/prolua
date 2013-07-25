@@ -85,7 +85,7 @@ end
 -- Returns the string 'stringtype(s)', where 's' is a single quoted ('') string.
 -- 's' is also formatted to handle escape characters.
 convert["String"] = function(ASTNode)
-	local formattedOutput = string.format("%s", ASTNode[1])
+	local formattedOutput = string.format("%q", ASTNode[1])
 
 	-- Remove quotation.
 	formattedOutput = formattedOutput:sub(2, string.len(formattedOutput) - 1)
