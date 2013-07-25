@@ -85,20 +85,20 @@ end
 -- Returns the string 'stringtype(s)', where 's' is a single quoted ('') string.
 -- 's' is also formatted to handle escape characters.
 convert["String"] = function(ASTNode)
-	local formattedOutput = string.format("%q", ASTNode[1])
+   local formattedOutput = string.format("%q", ASTNode[1])
 
-	-- Remove quotation.
-	formattedOutput = formattedOutput:sub(2, string.len(formattedOutput) - 1)
+   -- Remove quotation.
+   formattedOutput = formattedOutput:sub(2, string.len(formattedOutput) - 1)
 
-	formattedOutput = formattedOutput
-	:gsub("\a", "\\a")
-	:gsub("\b", "\\b")
-	:gsub("\f", "\\f")
-	:gsub("\n", "\\n")
-	:gsub("\r", "\\r")
-	:gsub("\t", "\\t")
-	:gsub("\v", "\\v")
-	:gsub("'", "''")
+   formattedOutput = formattedOutput
+   :gsub("\a", "\\a")
+   :gsub("\b", "\\b")
+   :gsub("\f", "\\f")
+   :gsub("\n", "\\n")
+   :gsub("\r", "\\r")
+   :gsub("\t", "\\t")
+   :gsub("\v", "\\v")
+   :gsub("'", "''")
 
    return "stringtype('" .. formattedOutput .. "')"
 end
@@ -285,19 +285,19 @@ convert["Op"] = function(ASTNode)
    -- Get the operator name.
    local name = ASTNode[1]
 
-   -- Get the operator's parity. Once the parity has been established, change the
+   -- Get the operator's arity. Once the arity has been established, change the
    -- operator name to match the documented syntax (see documentation) if need be.
-   local parity = ""
+   local arity = ""
    local nOperands = #ASTNode - 1
    if (nOperands == 1) then
-      parity = "unop"
+      arity = "unop"
 
       if     (name == "unm") then name = "negative"
       elseif (name == "not") then name = "not"
       elseif (name == "len") then name = "length"
       end
    else
-      parity = "binop"
+      arity = "binop"
 
       if  (name == "concat") then name = "concatenate"
       elseif (name ==  "eq") then name = "equal"
@@ -317,7 +317,7 @@ convert["Op"] = function(ASTNode)
          operands = operands .. ", "
       end
    end
-   return parity .. "(" .. name .. ", " .. operands .. ")"
+   return arity .. "(" .. name .. ", " .. operands .. ")"
 end
 
 -- Convert a function call node into Prolog.
@@ -425,26 +425,26 @@ end
 -- that references the function to call, and as is a list of arguments, with
 -- the first being the object that made the function call.
 convert["Invoke"] = function(ASTNode)
-	local tableName = ASTNodeToProlog(ASTNode[1])
-	local functionName = ASTNodeToProlog(ASTNode[2])
+   local tableName = ASTNodeToProlog(ASTNode[1])
+   local functionName = ASTNodeToProlog(ASTNode[2])
 
-	-- Create the accessor. This will be used to obtain the function body.
-	local access = "access(" .. tableName .. ", " .. functionName .. ")"
+   -- Create the accessor. This will be used to obtain the function body.
+   local access = "access(" .. tableName .. ", " .. functionName .. ")"
 
-	-- Create the function arguments.
-	local arguments = ""
-	local nArguments = #ASTNode - 2
-	if (nArguments > 0) then
-		arguments = ", "
-		for i = 3, #ASTNode do
-			arguments = arguments .. ASTNodeToProlog(ASTNode[i])
-			if (i < #ASTNode) then
-				arguments = arguments .. ", "
-			end
-		end
-	end
-	-- Return the result, while not forgeting to add the caller argument at the
-	-- front of the argument list.
+   -- Create the function arguments.
+   local arguments = ""
+   local nArguments = #ASTNode - 2
+   if (nArguments > 0) then
+      arguments = ", "
+      for i = 3, #ASTNode do
+         arguments = arguments .. ASTNodeToProlog(ASTNode[i])
+         if (i < #ASTNode) then
+            arguments = arguments .. ", "
+         end
+      end
+   end
+   -- Return the result, while not forgeting to add the caller argument at the
+   -- front of the argument list.
    return "functioncall(" .. access .. ", [" .. tableName .. arguments .. "])"
 end
 
@@ -460,15 +460,15 @@ end
 -- Returns the string 'localvariable(n, b)' where n is the variable name and
 -- b is the function body.
 convert["Localrec"] = function(ASTNode)
-	-- Get the variable name and remove the closing parenthesis.
-	local output = ASTNodeToProlog(ASTNode[1])
-	output = output.sub(output, 1, string.len(output) - 1) .. ", "
+   -- Get the variable name and remove the closing parenthesis.
+   local output = ASTNodeToProlog(ASTNode[1])
+   output = output.sub(output, 1, string.len(output) - 1) .. ", "
 
-	-- Then add an initial value.
-	output = output .. ASTNodeToProlog(ASTNode[2]) .. ")"
+   -- Then add an initial value.
+   output = output .. ASTNodeToProlog(ASTNode[2]) .. ")"
 
-	-- To finish up, prepend 'local' to the output.
-	return "local" .. output
+   -- To finish up, prepend 'local' to the output.
+   return "local" .. output
 end
 
 -- This function converts an AST's node into Prolog, in a format that
