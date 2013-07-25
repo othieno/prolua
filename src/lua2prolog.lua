@@ -504,4 +504,4 @@ input = input:gsub("^#[^\r\n]*", "") -- remove any shebang
 -- Get the program's abstract syntax tree and recursively convert it into Prolog.
 _G.mlc = {} -- make gg happy
 local mlp = assert(_G.mlp)
-print("program([" .. ASTNodeToProlog(mlp.chunk(mlp.lexer:newstream(input))) .. "]).")
+print("chunk([" .. ASTNodeToProlog(mlp.chunk(mlp.lexer:newstream(input))) .. "]).")

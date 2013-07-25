@@ -28,7 +28,7 @@ main :-
    current_prolog_flag(argv, Arguments),
    append(_, [--, Filename | _], Arguments), !,
    consult(Filename),
-   program(Statements),
+   chunk(Statements),
    write('CALL STACK:\n'),
    printCallStack(Statements, 1),
    write('END OF CALL STACK.\n'),
