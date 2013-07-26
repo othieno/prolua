@@ -1,7 +1,39 @@
-The MIT License (MIT)
-=====================
+Prolua
+======
 
 Copyright (c) 2013 Jeremy Othieno.
+
+Prolua is available under the [MIT License](https://github.com/supranove/prolua/blob/master/LICENSE.md#the-mit-license-mit).
+
+
+[Metalua](https://github.com/fab13n/metalua)
+============================================
+
+Copyright (c) 2006-2997 Fabien Fleutot <metalua@gmail.com>
+
+Metalua is available under the [MIT license](https://github.com/supranove/prolua/blob/master/LICENSE.md#the-mit-license-mit).
+
+To compile and use Metalua, you need to have installed the following
+project, released under the MIT public license:
+
+- Lua 5.1 <http://www.lua.org>
+
+Significant parts of the compiler borrow code from the following project,
+released under the MIT license:
+
+- Kein-Hong Man's     Yueliang  <http://luaforge.net/projects/yueliang>
+
+Previous versions of Metalua used to embed the following projects,
+all under MIT licence (hese dependencies have been removed to turn
+Metalua into a pure Lua project, simplifying the port to non-Unix OSes):
+
+- Tomas Guisasola's   Lua Rings <http://www.keplerproject.org/rings>
+- Ben Sunshine-Hill's Pluto     <http://freshmeat.net/projects/pluto>
+- Thomas Reuben's     Bitlib    <http://luaforge.net/projects/bitlib>
+
+
+The MIT License
+===============
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
