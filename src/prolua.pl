@@ -33,12 +33,12 @@ main :-
    halt.
 
 % Evaluate a list of statements. Before we can evaluate the statements, we load
-% the interpreter and standard library database, then call the evaluate/5 predicate.
+% the semantics and standard library database, then call the evaluate/5 predicate.
 % When evaluation is done, the result is printed as well as the program's last
 % memory state, i.e. the state of the environment when the program ended.
 main(Statements) :-
    consult('standard.pl'),
-   consult('interpreter.pl'),
+   consult('semantics.pl'),
    printCallStack(Statements),
    evaluate(_, _, Statements, Result, Environment),
    printExecutionResult(Result),
