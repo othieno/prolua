@@ -29,24 +29,17 @@ main :-
    append(_, [--, Filename | _], Arguments), !,
    consult(Filename),
    chunk(Statements),
-   write('CALL STACK:\n'),
-   printCallStack(Statements, 1),
-   write('END OF CALL STACK.\n'),
    main(Statements),
    halt.
 
 % Evaluate a list of statements. Before we can evaluate the statements, we load
-% the interpreter database, then call the evaluate/5 predicate. When evaluation
-% is done, the result is printed as well as the program's last memory state.
+% the interpreter and standard library database, then call the evaluate/5 predicate.
+% When evaluation is done, the result is printed as well as the program's last
+% memory state, i.e. the state of the environment when the program ended.
 main(Statements) :-
+   consult('standard.pl'),
    consult('interpreter.pl'),
-   evaluate(_, _, Statements, Result, Memory),
-   write('RESULT: '), write(Result), nl,
-   write('ENVIRONMENT: '), write(Memory), nl.
-
-% Print the call stack.
-printCallStack([], _).
-printCallStack([Statement | Statements], InstructionNumber) :-
-   write(InstructionNumber), write(' :: '), write(Statement), nl,
-   NextInstructionNumber is InstructionNumber + 1,
-   printCallStack(Statements, NextInstructionNumber).
+   printCallStack(Statements),
+   evaluate(_, _, Statements, Result, Environment),
+   printExecutionResult(Result),
+   printEnvironment(Environment).

@@ -21,7 +21,29 @@
 % THE SOFTWARE.
 
 
-% This is the core of Prolua; where the semantics are defined.
+% The standard library provides functions that help with tasks in the interpreter.
+% Many of these functions are not documented in the specification but the code is
+% simple to understand.
 
-% Evaluate a program.
-evaluate(_, _, _, undefined, undefined).
+% Print the call stack.
+printCallStack([]).
+printCallStack([], _).
+printCallStack(Statements) :-
+   write('CALL STACK:\n'),
+   printCallStack(Statements, 1),
+   write('END OF CALL STACK\n').
+
+printCallStack([Statement | Statements], InstructionNumber) :-
+   write(InstructionNumber), write(' :: '), write(Statement), nl,
+   NextInstructionNumber is InstructionNumber + 1,
+   printCallStack(Statements, NextInstructionNumber).
+
+
+% Print the result of an execution.
+printExecutionResult(Result) :-
+   write('RESULT: '), write(Result), nl.
+
+
+% Print the environment.
+printEnvironment(Environment) :-
+   write('ENVIRONMENT: '), write(Environment), nl.
