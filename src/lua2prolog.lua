@@ -113,21 +113,18 @@ convert["Function"] = function(ASTNode)
    local nParameters = #ASTNode[1]
    if (nParameters > 0) then
       for i = 1, nParameters do
-         -- If the node has a length greater than one, then a variable argument is included.
-         -- Stop processing after the node. (This is a bug in the generated tree).
-         local nodeLength = #ASTNode[i]
-         if (nodeLength > 0) then
-            parameters = parameters .. ASTNodeToProlog(ASTNode[i])
-            if (nodeLength > 1) then
-               break
-            end
-            if (i < nParameters) then
-               parameters = parameters .. ", "
-            end
+         local node = ASTNode[1][i]
+         if (node.tag == "Id") then
+            parameters = parameters .. "'" .. node[1] .. "'"
+         else
+            parameters = parameters .. ASTNodeToProlog(node)
+         end
+         if (i < nParameters) then
+            parameters = parameters .. ", "
          end
       end
    end
-   return "functionbody([" .. parameters .. "], block([" .. ASTNodeToProlog(ASTNode[2]) .. "]))"
+   return "functionbody([" .. parameters .. "], [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 end
 
 -- Convert a table type node into Prolog.
@@ -157,7 +154,7 @@ end
 -- param ASTNode the node to be converted.
 -- Returns the string 'varargtype'.
 convert["Dots"] = function(ASTNode)
-   return "varargtype(vararg)"
+   return "vararg"
 end
 
 -- Convert a pair into Prolog.
@@ -186,7 +183,7 @@ convert["Do"] = function(ASTNode)
          block = block .. ", "
       end
    end
-   return "do(block([" .. block .. "]))"
+   return "do([" .. block .. "])"
 end
 
 -- Convert an 'if' node into Prolog.
@@ -202,14 +199,14 @@ convert["If"] = function(ASTNode)
    for i = 1, #ASTNode - 1, 2 do
       output =
       output .. "if(" .. ASTNodeToProlog(ASTNode[i]) ..
-      ", block([" .. ASTNodeToProlog(ASTNode[i + 1]) .. "]), "
+      ", do([" .. ASTNodeToProlog(ASTNode[i + 1]) .. "]), "
    end
    -- Create bfalse iff there is one.
    local bfalse = ""
    if (#ASTNode > 2) then
       bfalse = ASTNodeToProlog(ASTNode[#ASTNode])
    end
-   return output .. "block([" .. bfalse .. "])" .. string.rep(")", #ASTNode/2)
+   return output .. "do([" .. bfalse .. "])" .. string.rep(")", #ASTNode/2)
 end
 
 -- Convert an assignment node into Prolog.
@@ -364,7 +361,7 @@ end
 -- Returns the string 'while(e, b)' where e is an expression that evaluates into a loop
 -- condition and b is the instruction block that is executed while the condition is true.
 convert["While"] = function(ASTNode)
-   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", block([" .. ASTNodeToProlog(ASTNode[2]) .. "]))"
+   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 end
 
 -- Convert a repeat-until loop node into Prolog.
@@ -372,20 +369,21 @@ end
 -- Returns the string 'repeat(e, b)' where e is an expression that evaluates into a
 -- condition and b is the instruction block that is executed until the condition is met.
 convert["Repeat"] = function(ASTNode)
-   return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", block([" .. ASTNodeToProlog(ASTNode[1]) .. "]))"
+   return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", [" .. ASTNodeToProlog(ASTNode[1]) .. "])"
 end
 
 -- Convert a numerical for loop node into Prolog.
 -- param ASTNode the node to be converted.
--- Returns the string 'for(v, i, e, s, b)' where v is the count variable, i is an
--- expression that evaluates into a numbertype and which will be the count variable's
--- initial value, e an expression that evaluates into a numbertype and will be the
--- count variable's stop value, s an expression that evaluates into a numbertype
--- which determines the count variable's increment value, and b the instruction block
--- that is executed while the count variable has not reached it's end value.
+-- Returns the string 'for(n, i, e, s, b)' where n is the name of the count variable,
+-- i is an expression that evaluates into a numbertype and which will be the count
+-- variable's initial value, e an expression that evaluates into a numbertype and
+-- will be the count variable's stop value, s an expression that evaluates into a
+-- numbertype which determines the count variable's increment value, and b the
+-- instruction block that is executed while the count variable has not reached it's
+-- end value.
 convert["Fornum"] = function(ASTNode)
-   -- Get the variable, and the initial and end values.
-   local variable = ASTNodeToProlog(ASTNode[1])
+   -- Get the variable name, and the initial and end values.
+   local variable = "'" .. ASTNode[1][1] .. "'"
    local start = ASTNodeToProlog(ASTNode[2])
    local stop = ASTNodeToProlog(ASTNode[3])
 
@@ -398,7 +396,7 @@ convert["Fornum"] = function(ASTNode)
    end
 
    -- Get the instruction block.
-   local block = "block([" .. ASTNodeToProlog(ASTNode[nodeLength]) .. "])"
+   local block = "[" .. ASTNodeToProlog(ASTNode[nodeLength]) .. "]"
 
    return
    "for(" .. variable .. ", " .. start .. ", " .. stop .. ", " .. increment .. ", " .. block .. ")"
@@ -410,12 +408,21 @@ end
 -- that evaluates into a list of values that will be assigned to the variables, and b an
 -- instruction block.
 convert["Forin"] = function(ASTNode)
-   -- Get the variable, and the initial and end values.
-   local variables = ASTNodeToProlog(ASTNode[1])
+   -- Get the variable names.
+   local variables = ""
+   local nVariables = #ASTNode[1]
+   for i = 1, nVariables do
+		variables = variables .. ASTNode[1][i][1]
+		if (i < nVariables) then
+			variables = variables .. ", "
+		end
+   end
+
+	-- Get the expressions and instruction block.
    local expressions = ASTNodeToProlog(ASTNode[2])
    local block = ASTNodeToProlog(ASTNode[3])
 
-   return "for([" .. variables .. "], " .. expressions .. ", block([" .. block .. "]))"
+   return "for([" .. variables .. "], " .. expressions .. ", [" .. block .. "])"
 end
 
 -- Convert an object-oriented call node into Prolog.
