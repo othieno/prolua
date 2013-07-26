@@ -27,12 +27,12 @@
 
 % Print the call stack.
 printCallStack([]).
-printCallStack([], _).
 printCallStack(Statements) :-
    write('CALL STACK:\n'),
    printCallStack(Statements, 1),
    write('END OF CALL STACK\n').
 
+printCallStack([], _).
 printCallStack([Statement | Statements], InstructionNumber) :-
    write(InstructionNumber), write(' :: '), write(Statement), nl,
    NextInstructionNumber is InstructionNumber + 1,
