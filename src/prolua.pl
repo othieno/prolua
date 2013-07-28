@@ -39,7 +39,7 @@ main :-
 main(Statements) :-
    consult('standard.pl'),
    consult('semantics.pl'),
-   printCallStack(Statements),
-   evaluate(_, _, Statements, Result, Environment),
-   printExecutionResult(Result),
+   % printCallStack(Statements), nl,
+   evaluate_p([tabletype([])], [referencetype(1)], Statements, Result, Environment),
+   printResult(Result),
    printEnvironment(Environment).

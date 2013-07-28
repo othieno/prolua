@@ -28,9 +28,8 @@
 % Print the call stack.
 printCallStack([]).
 printCallStack(Statements) :-
-   write('CALL STACK:\n'),
-   printCallStack(Statements, 1),
-   write('END OF CALL STACK\n').
+   write('Call stack:\n'),
+   printCallStack(Statements, 1).
 
 printCallStack([], _).
 printCallStack([Statement | Statements], InstructionNumber) :-
@@ -40,10 +39,16 @@ printCallStack([Statement | Statements], InstructionNumber) :-
 
 
 % Print the result of an execution.
-printExecutionResult(Result) :-
-   write('RESULT: '), write(Result), nl.
+printResult([]) :-
+   write('No results were returned.\n').
+
+printResult(error(ErrorMessage)) :-
+   write('Error! '), write(ErrorMessage), nl.
+
+printResult(Result) :-
+   write('Result: '), write(Result), nl.
 
 
 % Print the environment.
 printEnvironment(Environment) :-
-   write('ENVIRONMENT: '), write(Environment), nl.
+   write('Environment: '), write(Environment), nl.
