@@ -187,10 +187,10 @@ assign(E1, E2) :- explist(E1), explist(E2).
 do(Statements) :- statementlist(Statements).
 
 % The while operation.
-while(Expression, Statements) :- expression(Expression), statementlist(Statements).
+while(Expression, Statement) :- expression(Expression), statement(Statement).
 
 % The repeat-until operation.
-repeat(Expression, Statements) :- expression(Expression), statementlist(Statements).
+repeat(Expression, Statement) :- expression(Expression), statement(Statement).
 
 % The if-else operation.
 if(E, S1, S2) :- expression(E), statement(S1), statement(S2).
@@ -201,13 +201,13 @@ for(N, I, E, INC, S) :-
    expression(I),
    expression(E),
    expression(INC),
-   statementlist(S).
+   statement(S).
 
 % The generic for loop.
-for(NS, ES, SS) :-
+for(NS, ES, S) :-
    namelist(NS),
    explist(ES),
-   statementlist(SS).
+   statement(S).
 
 % Local variable declaration.
 localvariable(N, V) :- name(N), expression(V).

@@ -361,7 +361,7 @@ end
 -- Returns the string 'while(e, b)' where e is an expression that evaluates into a loop
 -- condition and b is the instruction block that is executed while the condition is true.
 convert["While"] = function(ASTNode)
-   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
+   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", do([" .. ASTNodeToProlog(ASTNode[2]) .. "]))"
 end
 
 -- Convert a repeat-until loop node into Prolog.
@@ -369,7 +369,7 @@ end
 -- Returns the string 'repeat(e, b)' where e is an expression that evaluates into a
 -- condition and b is the instruction block that is executed until the condition is met.
 convert["Repeat"] = function(ASTNode)
-   return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", [" .. ASTNodeToProlog(ASTNode[1]) .. "])"
+   return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", do([" .. ASTNodeToProlog(ASTNode[1]) .. "]))"
 end
 
 -- Convert a numerical for loop node into Prolog.
@@ -396,7 +396,7 @@ convert["Fornum"] = function(ASTNode)
    end
 
    -- Get the instruction block.
-   local block = "[" .. ASTNodeToProlog(ASTNode[nodeLength]) .. "]"
+   local block = "do([" .. ASTNodeToProlog(ASTNode[nodeLength]) .. "])"
 
    return
    "for(" .. variable .. ", " .. start .. ", " .. stop .. ", " .. increment .. ", " .. block .. ")"
@@ -422,7 +422,7 @@ convert["Forin"] = function(ASTNode)
    local expressions = ASTNodeToProlog(ASTNode[2])
    local block = ASTNodeToProlog(ASTNode[3])
 
-   return "for([" .. variables .. "], " .. expressions .. ", [" .. block .. "])"
+   return "for([" .. variables .. "], " .. expressions .. ", do([" .. block .. "]))"
 end
 
 -- Convert an object-oriented call node into Prolog.
