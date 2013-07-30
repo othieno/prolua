@@ -21,213 +21,8 @@
 % THE SOFTWARE.
 
 
-% This is the core of Prolua; where the semantics are defined.
-
-
-% Sets of elements.
-% -----------------
-
-% List of expressions.
-explist([]).
-explist([Expression | Expressions]) :-
-   expression(Expression),
-   explist(Expressions).
-
-% The name set and a list of name sets.
-name(Name) :-
-   atom(Name),
-   Name \= vararg.
-
-namelist([]).
-namelist([Name | Names]) :-
-   name(Name),
-   namelist(Names).
-
-% List of parameter names.
-parname(vararg).
-parname(Name) :- name(Name).
-
-parlist([]).
-parlist([ParameterName | ParameterNames]) :-
-   parname(ParameterName),
-   parlist(ParameterNames).
-
-% List of variables.
-varlist([]).
-varlist([variable(Name) | Variables]) :-
-   variable(Name),
-   varlist(Variables).
-
-% List of values.
-valuelist([]).
-valuelist([Value | Values]) :-
-   value(Value),
-   valuelist(Values).
-
-% List of statements.
-statementlist([]).
-statementlist([Statement | Statements]) :-
-   statement(Statement),
-   statementlist(Statements).
-
-% List of tables.
-tablelist([]).
-tablelist([tabletype(Table) | Tables]) :-
-   tabletype(Table),
-   tablelist(Tables).
-
-% A list of table references. Note that there's only one list of table
-% references and it must contain at least one reference!
-referencelist([referencetype(N)]) :- referencetype(N).
-referencelist([referencetype(N) | References]) :-
-   referencetype(N),
-   referencelist(References).
-
-
-
-% Types and values. Values in Prolua are explicitly typed to help keep things clear.
-% ----------------------------------------------------------------------------------
-
-% Nil data type.
-niltype(nil).
-
-% Booleans.
-booleantype(false).
-booleantype(true).
-
-% Numbers.
-numbertype(N) :- number(N).
-
-% Strings. Note that the string value is verified in lua2prolog.
-stringtype(_).
-
-% Tables (associative arrays).
-tablekey(Key) :-
-   expression(Key),
-   Key \= niltype(nil).
-
-tabletype([]).
-tabletype([[Key, Value] | T]) :-
-   tablekey(Key),
-   expression(Value),
-   tabletype(T).
-
-% Table references.
-referencetype(N) :-
-   integer(N), N > 0.
-
-% Function bodies.
-functionbody(ParameterNames, Statements) :-
-   parlist(ParameterNames),
-   statementlist(Statements).
-
-% The value set.
-value(niltype(nil)).
-value(booleantype(B)) :- booleantype(B).
-value(numbertype(N)) :- numbertype(N).
-value(stringtype(S)) :- stringtype(S).
-value(tabletype(T)) :- tabletype(T).
-value(functionbody(N, S)) :- functionbody(N, S).
-value(referencetype(N)) :- referencetype(N).
-value(valuelist(Values)) :- valuelist(Values).
-
-
-
-% Expressions.
-% ------------
-
-% Variables are expressions that evaluate into values.
-variable(N) :- name(N).
-
-% Unary operators.
-unop(negative, Expression) :- expression(Expression).
-unop(not, Expression) :- expression(Expression).
-unop(length, Expression) :- expression(Expression).
-
-% Binary operators.
-binop(add, E1, E2) :- expression(E1), expression(E2).
-binop(subtract, E1, E2) :- expression(E1), expression(E2).
-binop(multiply, E1, E2) :- expression(E1), expression(E2).
-binop(divide, E1, E2) :- expression(E1), expression(E2).
-binop(modulo, E1, E2) :- expression(E1), expression(E2).
-binop(exponent, E1, E2) :- expression(E1), expression(E2).
-binop(equal, E1, E2) :- expression(E1), expression(E2).
-binop(lt, E1, E2) :- expression(E1), expression(E2).
-binop(le, E1, E2) :- expression(E1), expression(E2).
-binop(gt, E1, E2) :- expression(E1), expression(E2).
-binop(ge, E1, E2) :- expression(E1), expression(E2).
-binop(and, E1, E2) :- expression(E1), expression(E2).
-binop(or, E1, E2) :- expression(E1), expression(E2).
-binop(concatenate, E1, E2) :- expression(E1), expression(E2).
-
-% The access operator.
-access(E1, E2) :- expression(E1), expression(E2).
-
-% Function calls.
-functioncall(E, ES) :- expression(E), explist(ES).
-
-% The expression set.
-expression(vararg).
-expression(E) :- value(E).
-expression(variable(N)) :- variable(N).
-expression(unop(N, E)) :- unop(N, E).
-expression(binop(N, E1, E2)) :- binop(N, E1, E2).
-expression(access(T, K)) :- access(T, K).
-expression(functioncall(E, ES)) :- functioncall(E, ES).
-
-
-
-% Statements.
-% -----------
-
-% The assignment operation.
-assign(E1, E2) :- explist(E1), explist(E2).
-
-% The do operation.
-do(Statements) :- statementlist(Statements).
-
-% The while operation.
-while(Expression, Statement) :- expression(Expression), statement(Statement).
-
-% The repeat-until operation.
-repeat(Expression, Statement) :- expression(Expression), statement(Statement).
-
-% The if-else operation.
-if(E, S1, S2) :- expression(E), statement(S1), statement(S2).
-
-% The numeric for loop.
-for(N, I, E, INC, S) :-
-   name(N),
-   expression(I),
-   expression(E),
-   expression(INC),
-   statement(S).
-
-% The generic for loop.
-for(NS, ES, S) :-
-   namelist(NS),
-   explist(ES),
-   statement(S).
-
-% Local variable declaration.
-localvariable(N, V) :- name(N), expression(V).
-
-% Return statement.
-return(ES) :- explist(ES).
-
-
-% The statement set.
-statement(assign(E1, E2)) :- assign(E1, E2).
-statement(functioncall(E, ES)) :- functioncall(E, ES).
-statement(do(Statements)) :- do(Statements).
-statement(while(Expression, Statements)) :- while(Expression, Statements).
-statement(repeat(Expression, Statements)) :- repeat(Expression, Statements).
-statement(if(E, S1, S2)) :- if(E, S1, S2).
-statement(for(N, I, E, INC, S)) :- for(N, I, E, INC, S).
-statement(for(NS, ES, SS)) :- for(NS, ES, SS).
-statement(localvariable(N, V)) :- localvariable(N, V).
-statement(return(ES)) :- return(ES).
-statement(break).
+% This is the core of Prolua; where the evaluation semantics for all expressions
+% and statements are defined.
 
 
 % Expression evaluation.
@@ -236,16 +31,24 @@ statement(break).
 
 
 
-% Statement evaluation.
-% ---------------------
 
+
+
+
+% Statement evaluation. (Temporary until the evaluation semantics has been completed. This
+% just makes sure all input statements can be unified.)
+% ---------------------
 evaluate_s(Environment, _, Statement, continue, [], Environment) :-
    statement(Statement).
 
 
 
 
-% Program evaluation.
+
+
+
+
+% Program evaluation. (Temporary until the evaluation semantics has been completed.)
 % -------------------
 
 % If the environment isn't a list of tables, then we have an error.
@@ -272,3 +75,4 @@ evaluate_p(Environment, References, [Statement | _], Error, Environment1) :-
 % If the control is 'return', we exit the program and return the result.
 evaluate_p(Environment, References, [Statement | _], Result, Environment1) :-
    evaluate_s(Environment, References, Statement, return, Result, Environment1).
+
