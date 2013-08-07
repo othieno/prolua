@@ -29,21 +29,24 @@ main :-
    append(_, [--, Filename | _], Arguments), !,
    consult(Filename),
    chunk(Statements),
-   main(Statements),
+   arguments(CommandLineArguments),
+   main(Statements, CommandLineArguments),
    halt.
 
 % Evaluate a list of statements. Before we can evaluate the statements, we load
-% the standard, syntax and semantics database, then call the evaluate/5 predicate.
-% When evaluation is done, the result is printed as well as the program's last
-% memory state, i.e. the state of the environment when the program ended.
-main(Statements) :-
+% the standard, syntax and semantics database, then evaluate the program.
+% Remember that a chunk is handled as the body of an anonymous function with a
+% variable number of arguments. All we do is evaluate a function call to this
+% anonymous function and print the return value and since we wish to view the
+% return value, the function call is evaluated as an expression rather than a
+% statement.
+main(SS, CLAS) :-
    consult('standard.pl'),
    consult('syntax.pl'),
    consult('semantics.pl'),
-   % printCallStack(Statements), nl,
-   evaluate_p([tabletype([])], [referencetype(1)], Statements, Result, Environment),
-   printResult(Result),
-   printEnvironment(Environment).
+   evaluate_rhs([], [], functioncall(function(['...'], SS), CLAS), _, R),
+   printResult(R),
+   printStatistics.
 
 % In case of an evaluation error, print an error message.
 main(_) :-
