@@ -21,11 +21,8 @@
 % THE SOFTWARE.
 
 
-% This is where the syntax of Prolua is defined.
-
-
 % Sets of elements.
-% -----------------
+% ------------------------------------------------------------------------------
 
 % List of expressions.
 explist([]).
@@ -36,7 +33,7 @@ explist([Expression | Expressions]) :-
 % The name set and a list of name sets.
 name(Name) :-
    atom(Name),
-   Name \= vararg.
+   Name \= '...'.
 
 namelist([]).
 namelist([Name | Names]) :-
@@ -44,7 +41,7 @@ namelist([Name | Names]) :-
    namelist(Names).
 
 % List of parameter names.
-parname(vararg).
+parname('...').
 parname(Name) :- name(Name).
 
 parlist([]).
@@ -55,7 +52,7 @@ parlist([ParameterName | ParameterNames]) :-
 % List of variables.
 varlist([]).
 varlist([variable(Name) | Variables]) :-
-   variable(Name),
+   name(Name),
    varlist(Variables).
 
 % List of values.
@@ -70,23 +67,16 @@ statementlist([Statement | Statements]) :-
    statement(Statement),
    statementlist(Statements).
 
-% List of tables.
-tablelist([]).
-tablelist([tabletype(Table) | Tables]) :-
-   tabletype(Table),
-   tablelist(Tables).
-
-% A list of table references. Note that there's only one list of table
-% references and it must contain at least one reference!
-referencelist([referencetype(N)]) :- referencetype(N).
-referencelist([referencetype(N) | References]) :-
-   referencetype(N),
-   referencelist(References).
+% A stack of table references.
+referencestack([]).
+referencestack([referencetype(N) | References]) :-
+	referencetype(N),
+	referencestack(References).
 
 
-
-% Types and values. Values in Prolua are explicitly typed to help keep things clear.
-% ----------------------------------------------------------------------------------
+% Types and values. Values in Prolua are explicitly typed to help keep things
+% clear, with the downside of having cumbersome operations.
+% ------------------------------------------------------------------------------
 
 % Nil data type.
 niltype(nil).
@@ -95,31 +85,30 @@ niltype(nil).
 booleantype(false).
 booleantype(true).
 
-% Numbers.
+% Real numbers.
 numbertype(N) :- number(N).
 
 % Strings. Note that the string value is verified in lua2prolog.
 stringtype(_).
 
 % Tables (associative arrays).
-tablekey(Key) :-
-   expression(Key),
-   Key \= niltype(nil).
-
 tabletype([]).
 tabletype([[Key, Value] | T]) :-
-   tablekey(Key),
-   expression(Value),
+	expression(Key),
+	Key \= niltype(nil),
+	expression(Value),
    tabletype(T).
 
 % Table references.
 referencetype(N) :-
-   integer(N), N > 0.
+   integer(N),
+   N > 0.
 
-% Function bodies.
-functionbody(ParameterNames, Statements) :-
+% Function type.
+functiontype(ParameterNames, Statements, References) :-
    parlist(ParameterNames),
-   statementlist(Statements).
+   statementlist(Statements),
+   referencestack(References).
 
 % The value set.
 value(niltype(nil)).
@@ -127,43 +116,50 @@ value(booleantype(B)) :- booleantype(B).
 value(numbertype(N)) :- numbertype(N).
 value(stringtype(S)) :- stringtype(S).
 value(tabletype(T)) :- tabletype(T).
-value(functionbody(N, S)) :- functionbody(N, S).
+value(functiontype(PS, SS, RS)) :- functiontype(PS, SS, RS).
 value(referencetype(N)) :- referencetype(N).
-value(valuelist(Values)) :- valuelist(Values).
 
 
 
 % Expressions.
-% ------------
+% ------------------------------------------------------------------------------
 
-% Variables are expressions that evaluate into values.
-variable(N) :- name(N).
+% Enclosed expressions.
+enclosed(Expression) :- expression(Expression).
+
+% Variable expressions.
+variable(Name) :- name(Name).
+
+% Field accessor expression.
+access(Reference, Key) :-
+	expression(Reference),
+	expression(Key).
 
 % Unary operators.
-unop(negative, Expression) :- expression(Expression).
+unop(unm, Expression) :- expression(Expression).
 unop(not, Expression) :- expression(Expression).
-unop(length, Expression) :- expression(Expression).
+unop(len, Expression) :- expression(Expression).
 
 % Binary operators.
 binop(add, E1, E2) :- expression(E1), expression(E2).
-binop(subtract, E1, E2) :- expression(E1), expression(E2).
-binop(multiply, E1, E2) :- expression(E1), expression(E2).
-binop(divide, E1, E2) :- expression(E1), expression(E2).
-binop(modulo, E1, E2) :- expression(E1), expression(E2).
-binop(exponent, E1, E2) :- expression(E1), expression(E2).
-binop(equal, E1, E2) :- expression(E1), expression(E2).
-binop(lt, E1, E2) :- expression(E1), expression(E2).
-binop(le, E1, E2) :- expression(E1), expression(E2).
-binop(gt, E1, E2) :- expression(E1), expression(E2).
-binop(ge, E1, E2) :- expression(E1), expression(E2).
+binop(sub, E1, E2) :- expression(E1), expression(E2).
+binop(mul, E1, E2) :- expression(E1), expression(E2).
+binop(div, E1, E2) :- expression(E1), expression(E2).
+binop(mod, E1, E2) :- expression(E1), expression(E2).
+binop(pow, E1, E2) :- expression(E1), expression(E2).
+binop( eq, E1, E2) :- expression(E1), expression(E2).
+binop( lt, E1, E2) :- expression(E1), expression(E2).
+binop( le, E1, E2) :- expression(E1), expression(E2).
+binop( gt, E1, E2) :- expression(E1), expression(E2).
+binop( ge, E1, E2) :- expression(E1), expression(E2).
 binop(and, E1, E2) :- expression(E1), expression(E2).
-binop(or, E1, E2) :- expression(E1), expression(E2).
-binop(concatenate, E1, E2) :- expression(E1), expression(E2).
+binop( or, E1, E2) :- expression(E1), expression(E2).
+binop(cat, E1, E2) :- expression(E1), expression(E2).
 
-% The access operator.
-access(E1, E2) :-
-   expression(E1),
-   expression(E2).
+% Function definition.
+function(PS, SS) :-
+	parlist(PS),
+	statementlist(SS).
 
 % Function calls.
 functioncall(E, ES) :-
@@ -171,59 +167,46 @@ functioncall(E, ES) :-
    explist(ES).
 
 % The expression set.
-expression(vararg).
-expression(E) :- value(E).
-expression(variable(N)) :- variable(N).
+expression(Expression) :- value(Expression).
+expression(variable(Name)) :- variable(Name).
+expression(access(R, K)) :- access(R, K).
+expression('...').
 expression(unop(N, E)) :- unop(N, E).
 expression(binop(N, E1, E2)) :- binop(N, E1, E2).
-expression(access(T, K)) :- access(T, K).
+expression(function(PS, SS)) :- function(PS, SS).
 expression(functioncall(E, ES)) :- functioncall(E, ES).
-expression(_) :- false.
+
 
 
 
 
 % Statements.
-% -----------
+% ------------------------------------------------------------------------------
 
 % The assignment operation.
-assign(ExpressionsLHS, ExpressionsRHS) :-
-   explist(ExpressionsLHS),
-   explist(ExpressionsRHS).
+assign(LHS, RHS) :-
+   explist(LHS),
+   explist(RHS).
 
 % The do operation.
 do(Statements) :-
    statementlist(Statements).
 
 % The while operation.
-while(Expression, Statement) :-
+while(Expression, Statements) :-
    expression(Expression),
-   statement(Statement).
+   statementlist(Statements).
 
 % The repeat-until operation.
-repeat(Expression, Statement) :-
+repeat(Expression, Statements) :-
    expression(Expression),
-   statement(Statement).
+   statementlist(Statements).
 
 % The if-else operation.
 if(Expression, StatementTrue, StatementFalse) :-
    expression(Expression),
    statement(StatementTrue),
    statement(StatementFalse).
-
-% The numeric for loop.
-for(Name, Initial, End, Increment, Statement) :-
-   name(Name),
-   expression(Initial),
-   expression(End),
-   expression(Increment),
-   statement(Statement).
-
-% The generic for loop.
-for(Names, Expressions, Statement) :-
-   namelist(Names),
-   explist(Expressions),
-   statement(Statement).
 
 % Local variable declaration.
 localvariable(Name, Value) :-
@@ -236,14 +219,12 @@ return(Expressions) :-
 
 
 % The statement set.
-statement(assign(ExpressionsLHS, ExpressionsRHS)) :- assign(ExpressionsLHS, ExpressionsRHS).
+statement(assign(LHS, RHS)) :- assign(LHS, RHS).
 statement(functioncall(Expression, Expressions)) :- functioncall(Expression, Expressions).
 statement(do(Statements)) :- do(Statements).
 statement(while(Expression, Statements)) :- while(Expression, Statements).
 statement(repeat(Expression, Statements)) :- repeat(Expression, Statements).
 statement(if(E, S1, S2)) :- if(E, S1, S2).
-statement(for(N, I, E, INC, S)) :- for(N, I, E, INC, S).
-statement(for(Names, Expressions, Statement)) :- for(Names, Expressions, Statement).
 statement(localvariable(Name, Value)) :- localvariable(Name, Value).
 statement(return(Expressions)) :- return(Expressions).
 statement(break).
