@@ -22,9 +22,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-if [ $# -ne 1 ]
+if [ $# -lt 1 ]
 then
-   echo "$0 requires the source code of a lua program, e.g. $0 helloworld.lua"
+   echo "Usage: $0 <source> [arguments]"
+   echo "$0 requires the source code of a valid Lua program at least."
+   echo "Optionally, runtime arguments can be passed to the program."
+   exit 1
+fi
+
+# Make sure the input is a valid Lua program. This runs the Lua interpreter on
+# the input code and checks the exit status upon completion. If the exit status
+# is not zero, then the input is not a valid Lua program.
+lua "$1" &> /dev/null
+if [ $? -gt 0 ]
+then
+   echo "% Error! '$1' is not a valid Lua program."
    exit 1
 fi
 
@@ -42,7 +54,7 @@ trap clean INT TERM EXIT
 
 # Convert the Lua source code into prolog and store it in the output file, then
 # pass the output file to prolua to be interpreted.
-lua lua2prolog.lua "$1" > $LUA_OUTPUT
+lua lua2prolog.lua "$1" ${*:2} > $LUA_OUTPUT
 swipl -q -f prolua.pl -g main -- $LUA_OUTPUT
 
 exit 0
