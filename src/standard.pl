@@ -29,14 +29,13 @@
 % Type operator.
 % ------------------------------------------------------------------------------
 
-type(niltype(_), 'Nil').
-type(booleantype(_), 'Boolean').
-type(numbertype(_), 'Number').
-type(stringtype(_), 'String').
-type(tabletype(_), 'Table').
-type(functiontype(_, _, _), 'Function').
-type(referencetype(_), 'Reference').
-
+'std::type'(niltype(_), 'type:nil').
+'std::type'(booleantype(_), 'type:boolean').
+'std::type'(numbertype(_), 'type:number').
+'std::type'(stringtype(_), 'type:string').
+'std::type'(tabletype(_), 'type:table').
+'std::type'(functiontype(_, _, _), 'type:function').
+'std::type'(referencetype(_), 'type:reference').
 
 
 
@@ -56,6 +55,17 @@ env_make(ETS, RS, Fields, ETS1, RS1) :-
    append([referencetype(Size)], RS, RS1).
 
 % Add a table with the key-value pairs to the environment.
+env_make(ETS, RS, ['...' | _], [], ETS1, RS1) :-
+   append(ETS, [tabletype(['...', niltype(nil)])], ETS1),
+   list_size(ETS1, Size),
+   append([referencetype(Size)], RS, RS1).
+
+% Be wary of variadic expressions.
+env_make(ETS, RS, ['...' | _], Values, ETS1, RS1) :-
+   append(ETS, [tabletype(['...', Values])], ETS1),
+   list_size(ETS1, Size),
+   append([referencetype(Size)], RS, RS1).
+
 env_make(ETS, RS, Keys, Values, ETS1, RS1) :-
    table_create(Keys, Values, Table),
    append(ETS, [Table], ETS1),
@@ -88,12 +98,24 @@ env_getvalue(ETS, Reference, Key, Value) :-
 
 
 % Set a field value in a referenced table based on its key.
-env_setvalue([E | ES], referencetype(1), K, V, [NE | ES]) :-
-   table_set(E, K, V, NE).
-env_setvalue([E | ES], referencetype(N), K, V, [E | NES]) :-
+env_setvalue([ET | ETS], referencetype(1), K, V, [ET1 | ETS]) :-
+   table_set(ET, K, V, ET1).
+env_setvalue([ET | ETS], referencetype(N), K, V, [ET | ETS1]) :-
    referencetype(N),
    M is N - 1,
-   env_setvalue(ES, referencetype(M), K, V, NES).
+   env_setvalue(ETS, referencetype(M), K, V, ETS1).
+
+
+% Set a field value in the current environment.
+env_setvalues(ETS, [], _, ETS).
+
+env_setvalues(ETS, [[R, K] | RKS], [], ETS2) :-
+   env_setvalue(ETS, R, K, niltype(nil), ETS1),
+   env_setvalues(ETS1, RKS, [], ETS2).
+
+env_setvalues(ETS, [[R, K] | RKS], [V | VS], ETS2) :-
+   env_setvalue(ETS, R, K, V, ETS1),
+   env_setvalues(ETS1, RKS, VS, ETS2).
 
 
 
@@ -105,7 +127,6 @@ list_size([], 0).
 list_size([_ | Sublist], Size) :-
    list_size(Sublist, SublistSize),
    Size is SublistSize + 1.
-
 
 
 
@@ -158,38 +179,81 @@ table_set(tabletype([[K, V] | T]), K1, V1, tabletype([[K, V] | T1])) :-
 % Feedback predicates.
 % ------------------------------------------------------------------------------
 
-% Print the call stack.
-printCallStack([]).
-printCallStack(Statements) :-
-   write('Call stack:\n'),
-   printCallStack(Statements, 1).
+% Print a line.
+println(Line) :- write(Line), nl.
 
-printCallStack([], _).
-printCallStack([Statement | Statements], InstructionNumber) :-
+
+% Format values to ease readability.
+'std:format'(type(T), T).
+'std:format'(niltype(nil), 'nil').
+'std:format'(numbertype(N), N).
+'std:format'(booleantype(B), B).
+'std:format'(stringtype(S), S2) :-
+   atom_concat('"',  S, S1),
+   atom_concat(S1, '"', S2).
+'std:format'(functiontype(_, _, _), 'function*').
+'std:format'(referencetype(N), Reference) :-
+   atom_concat('table:', N, Reference).
+'std:format'([Value], FormattedValue) :-
+   'std:format'(Value, FormattedValue).
+'std:format'([Value | Values], FullyFormattedValues) :-
+   'std:format'(Value, FormattedValue),
+   'std:format'(Values, FormattedValues),
+   atom_concat(FormattedValue, ', ', TMP),
+   atom_concat(TMP, FormattedValues, FullyFormattedValues).
+
+
+
+% Print the call stack (the statements to be executed).
+'std:printfi'([]).
+'std:printfi'(Statements) :-
+   println('Call stack:'),
+   'std:printfi'(Statements, 1).
+
+'std:printfi'([], _).
+'std:printfi'([Statement | Statements], InstructionNumber) :-
    write(InstructionNumber), write(' :: '), write(Statement), nl,
    NextInstructionNumber is InstructionNumber + 1,
-   printCallStack(Statements, NextInstructionNumber).
-
-
-% Print the result of an execution.
-printResult([]) :-
-   write('% No results were returned.\n').
-
-printResult(error(ErrorMessage)) :-
-   write('% Error! '), write(ErrorMessage), nl.
-
-printResult(Result) :-
-   write('% Result: '), write(Result), nl.
-
-
-% Print the environment.
-printEnvironment(Environment) :-
-   write('% Environment: '), write(Environment), nl.
+   'std:printfi'(Statements, NextInstructionNumber).
 
 
 
-% Print execution statistics.
-printStatistics :-
+% Print the result of an execution, formatted for readability.
+'std:printfr'(error(Message)) :-
+   write('% Error! '), println(Message).
+
+'std:printfr'([]) :-
+   println('% No results were returned.').
+
+'std:printfr'(Result) :-
+   'std:format'(Result, FormattedResult),
+   atom_concat('% Result: ', FormattedResult, FullyFormattedResult),
+   println(FullyFormattedResult).
+
+
+
+% Print the environment, formatted for readability.
+'std:printfe'(_).
+'std:printfe'(Environment) :-
+   'std:format'(Environment, FormattedEnvironment),
+   atom_concat('% Environment:\n', FormattedEnvironment, FullyFormattedEnvironment),
+   println(FullyFormattedEnvironment).
+
+
+
+% Print execution statistics, formatted for readability.
+'std:printfs' :-
    statistics(runtime, [CPUTime | _]),
    Runtime is CPUTime/1000,
    write('% Evaluated in '), write(Runtime), write(' seconds.'), nl.
+
+
+
+% The initial environment table.
+% ------------------------------------------------------------------------------
+'std:et0'(tabletype([
+   [
+      'type',
+      functiontype(['value'], [return([unop(type, variable('value'))])], [])
+   ]
+])).

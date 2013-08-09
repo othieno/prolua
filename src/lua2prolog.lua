@@ -80,12 +80,9 @@ convert["Number"] = function(ASTNode)
    return "numbertype(" .. ASTNode[1] .. ")"
 end
 
--- Convert a string value into Prolog.
--- param ASTNode the node to convert.
--- Returns the string 'stringtype(s)', where 's' is a single quoted ('') string.
--- 's' is also formatted to handle escape characters.
-convert["String"] = function(ASTNode)
-   local formattedOutput = string.format("%q", ASTNode[1])
+-- Convert a given string s to 'stringtype('s')' formatting if need be.
+function toStringType(string)
+   local formattedOutput = string.format("%q", string)
 
    -- Remove quotation.
    formattedOutput = formattedOutput:sub(2, string.len(formattedOutput) - 1)
@@ -103,9 +100,17 @@ convert["String"] = function(ASTNode)
    return "stringtype('" .. formattedOutput .. "')"
 end
 
+-- Convert a string value into Prolog.
+-- param ASTNode the node to convert.
+-- Returns the string 'stringtype(s)', where 's' is a single quoted ('') string.
+-- 's' is also formatted to handle escape characters.
+convert["String"] = function(ASTNode)
+   return toStringType(ASTNode[1])
+end
+
 -- Convert a function definition node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'functionbody(ps, b)' where ps is a list of parameters
+-- Returns the string 'function(ps, b)' where ps is a list of parameters
 -- and b is the function's instruction block.
 convert["Function"] = function(ASTNode)
    -- Create function parameters.
@@ -124,7 +129,7 @@ convert["Function"] = function(ASTNode)
          end
       end
    end
-   return "functionbody([" .. parameters .. "], [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
+   return "function([" .. parameters .. "], [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 end
 
 -- Convert a table type node into Prolog.
@@ -154,7 +159,7 @@ end
 -- param ASTNode the node to be converted.
 -- Returns the string 'varargtype'.
 convert["Dots"] = function(ASTNode)
-   return "vararg"
+   return "'...'"
 end
 
 -- Convert a pair into Prolog.
@@ -287,23 +292,9 @@ convert["Op"] = function(ASTNode)
    local arity = ""
    local nOperands = #ASTNode - 1
    if (nOperands == 1) then
-      arity = "unop"
-
-      if     (name == "unm") then name = "negative"
-      elseif (name == "not") then name = "not"
-      elseif (name == "len") then name = "length"
-      end
+      arity = "unop("
    else
-      arity = "binop"
-
-      if  (name == "concat") then name = "concatenate"
-      elseif (name ==  "eq") then name = "equal"
-      elseif (name == "sub") then name = "subtract"
-      elseif (name == "mul") then name = "multiply"
-      elseif (name == "div") then name = "divide"
-      elseif (name == "pow") then name = "exponent"
-      elseif (name == "mod") then name = "modulo"
-      end
+      arity = "binop("
    end
 
    -- Convert the operands.
@@ -314,7 +305,7 @@ convert["Op"] = function(ASTNode)
          operands = operands .. ", "
       end
    end
-   return arity .. "(" .. name .. ", " .. operands .. ")"
+   return arity .. name .. ", " .. operands .. ")"
 end
 
 -- Convert a function call node into Prolog.
@@ -361,7 +352,7 @@ end
 -- Returns the string 'while(e, b)' where e is an expression that evaluates into a loop
 -- condition and b is the instruction block that is executed while the condition is true.
 convert["While"] = function(ASTNode)
-   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", do([" .. ASTNodeToProlog(ASTNode[2]) .. "]))"
+   return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 end
 
 -- Convert a repeat-until loop node into Prolog.
@@ -369,7 +360,7 @@ end
 -- Returns the string 'repeat(e, b)' where e is an expression that evaluates into a
 -- condition and b is the instruction block that is executed until the condition is met.
 convert["Repeat"] = function(ASTNode)
-   return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", do([" .. ASTNodeToProlog(ASTNode[1]) .. "]))"
+   return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", [" .. ASTNodeToProlog(ASTNode[1]) .. "])"
 end
 
 -- Convert a numerical for loop node into Prolog.
@@ -412,13 +403,13 @@ convert["Forin"] = function(ASTNode)
    local variables = ""
    local nVariables = #ASTNode[1]
    for i = 1, nVariables do
-		variables = variables .. ASTNode[1][i][1]
-		if (i < nVariables) then
-			variables = variables .. ", "
-		end
+      variables = variables .. ASTNode[1][i][1]
+      if (i < nVariables) then
+         variables = variables .. ", "
+      end
    end
 
-	-- Get the expressions and instruction block.
+   -- Get the expressions and instruction block.
    local expressions = ASTNodeToProlog(ASTNode[2])
    local block = ASTNodeToProlog(ASTNode[3])
 
@@ -466,6 +457,16 @@ end
 -- param ASTNode the node to convert.
 -- Returns the string 'localvariable(n, b)' where n is the variable name and
 -- b is the function body.
+-- FIXME
+--[[
+local f = function () body end
+translates to
+
+     local f; f = function () body end
+not to
+
+     local f = function () body end
+]]
 convert["Localrec"] = function(ASTNode)
    -- Get the variable name and remove the closing parenthesis.
    local output = ASTNodeToProlog(ASTNode[1])
@@ -512,3 +513,13 @@ input = input:gsub("^#[^\r\n]*", "") -- remove any shebang
 _G.mlc = {} -- make gg happy
 local mlp = assert(_G.mlp)
 print("chunk([" .. ASTNodeToProlog(mlp.chunk(mlp.lexer:newstream(input))) .. "]).")
+
+-- Create command line arguments.
+local arguments = ""
+for i = 2, #arg do
+   arguments = arguments .. toStringType(arg[i])
+   if (i < #arg) then
+      arguments = arguments .. ", "
+   end
+end
+print("arguments([" .. arguments .. "]).")

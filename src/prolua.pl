@@ -44,9 +44,12 @@ main(SS, CLAS) :-
    consult('standard.pl'),
    consult('syntax.pl'),
    consult('semantics.pl'),
-   evaluate_rhs([], [], functioncall(function(['...'], SS), CLAS), _, R),
-   printResult(R),
-   printStatistics.
+   append(['std:initialise'], SS, SS1),
+   % 'std:printfi'(SS1),
+   evaluate_rhs([], [], functioncall(function(['...'], SS1), CLAS), ETS, R),
+   'std:printfr'(R),
+   'std:printfe'(ETS),
+   'std:printfs'.
 
 % In case of an evaluation error, print an error message.
 main(_) :-
