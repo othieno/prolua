@@ -70,8 +70,8 @@ statementlist([Statement | Statements]) :-
 % A stack of table references.
 referencestack([]).
 referencestack([referencetype(N) | References]) :-
-	referencetype(N),
-	referencestack(References).
+   referencetype(N),
+   referencestack(References).
 
 
 % Types and values. Values in Prolua are explicitly typed to help keep things
@@ -94,9 +94,9 @@ stringtype(_).
 % Tables (associative arrays).
 tabletype([]).
 tabletype([[Key, Value] | T]) :-
-	expression(Key),
-	Key \= niltype(nil),
-	expression(Value),
+   expression(Key),
+   Key \= niltype(nil),
+   expression(Value),
    tabletype(T).
 
 % Table references.
@@ -132,8 +132,8 @@ variable(Name) :- name(Name).
 
 % Field accessor expression.
 access(Reference, Key) :-
-	expression(Reference),
-	expression(Key).
+   expression(Reference),
+   expression(Key).
 
 % Unary operators.
 unop(unm, Expression) :- expression(Expression).
@@ -158,13 +158,17 @@ binop(cat, E1, E2) :- expression(E1), expression(E2).
 
 % Function definition.
 function(PS, SS) :-
-	parlist(PS),
-	statementlist(SS).
+   parlist(PS),
+   statementlist(SS).
 
 % Function calls.
 functioncall(E, ES) :-
    expression(E),
    explist(ES).
+
+% Type operator.
+type(E) :-
+   expression(E).
 
 % The expression set.
 expression(Expression) :- value(Expression).
@@ -175,8 +179,7 @@ expression(unop(N, E)) :- unop(N, E).
 expression(binop(N, E1, E2)) :- binop(N, E1, E2).
 expression(function(PS, SS)) :- function(PS, SS).
 expression(functioncall(E, ES)) :- functioncall(E, ES).
-
-
+expression(type(E)) :- type(E).
 
 
 
