@@ -135,12 +135,15 @@ evaluate_rhs(ETS, RS, access(R, K), ETS1, [V]) :-
 
 
 % Evaluate a variadic expression.
-evaluate_rhs(ETS, [R | _], '...', ETS, error('Cannot use ''...'' outside a vararg function')) :-
-   env_keyexists(ETS, R, '...', false), !.
+evaluate_rhs(ETS, [], '...', ETS, error('\'...\' is not defined.')).
 
 evaluate_rhs(ETS, [R | _], '...', ETS, VS) :-
-   env_keyexists(ETS, R, '...', true),
+   env_keyexists(ETS, R, '...', booleantype(true)),
    env_getvalue(ETS, R, '...', VS).
+
+evaluate_rhs(ETS, [R | RS], '...', ETS1, VS) :-
+   env_keyexists(ETS, R, '...', booleantype(false)),
+   evaluate_rhs(ETS, RS, '...', ETS1, VS).
 
 
 
@@ -225,13 +228,13 @@ evaluate_rhs(ETS, RS, functioncall(E, ES), ETS4, VS_ss) :-
 evaluate_stat(ETS, _, statementlist([]), ETS, continue, []).
 
 evaluate_stat(ETS, RS, statementlist([S | _]), ETS1, return, VS) :-
-   evaluate_stat(ETS, RS, S, ETS1, return, VS), !.
+   evaluate_stat(ETS, RS, S, ETS1, return, VS).
 
 evaluate_stat(ETS, RS, statementlist([S | _]), ETS1, break, []) :-
-   evaluate_stat(ETS, RS, S, ETS1, break, _), !.
+   evaluate_stat(ETS, RS, S, ETS1, break, _).
 
 evaluate_stat(ETS, RS, statementlist([S | _]), ETS1, error, Error) :-
-   evaluate_stat(ETS, RS, S, ETS1, error, Error), !.
+   evaluate_stat(ETS, RS, S, ETS1, error, Error).
 
 evaluate_stat(ETS, RS, statementlist([S | SS]), ETS2, C, VS) :-
    evaluate_stat(ETS, RS, S, ETS1, continue, _),

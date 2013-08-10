@@ -55,13 +55,13 @@ env_make(ETS, RS, Fields, ETS1, RS1) :-
 
 % Add a table with the key-value pairs to the environment.
 env_make(ETS, RS, ['...' | _], [], ETS1, RS1) :-
-   append(ETS, [table(['...', niltype(nil)])], ETS1),
+   append(ETS, [table([['...', [niltype(nil)]]])], ETS1),
    list_size(ETS1, Size),
    append([referencetype(Size)], RS, RS1).
 
 % Be wary of variadic expressions.
 env_make(ETS, RS, ['...' | _], Values, ETS1, RS1) :-
-   append(ETS, [table(['...', Values])], ETS1),
+   append(ETS, [table([['...', Values]])], ETS1),
    list_size(ETS1, Size),
    append([referencetype(Size)], RS, RS1).
 
@@ -209,6 +209,7 @@ println(Line) :- write(Line), nl.
    'std:format'(Values, FormattedValues),
    atom_concat(FormattedValue, ', ', TMP),
    atom_concat(TMP, FormattedValues, FullyFormattedValues).
+'std:format'(Environment, Environment).                                                               %TODO
 
 
 
@@ -243,9 +244,9 @@ println(Line) :- write(Line), nl.
 % Print the environment, formatted for readability.
 'std:printfe'(_).
 'std:printfe'(Environment) :-
+   println('Environment:'),
    'std:format'(Environment, FormattedEnvironment),
-   atom_concat('% Environment:\n', FormattedEnvironment, FullyFormattedEnvironment),
-   println(FullyFormattedEnvironment).
+   println(FormattedEnvironment).
 
 
 
