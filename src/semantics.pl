@@ -71,7 +71,7 @@ evaluate_lhs(ETS, RS, access(R, K), ETS2, [V_r, V_k]) :-
 
 
 
-% Evaluate a list of right-hand side (LHS) expressions.
+% Evaluate a list of right-hand side (RHS) expressions.
 evaluate_rhs(ETS, _, explist([]), ETS, []).
 
 evaluate_rhs(ETS, RS, explist([E | _]), ETS1, error(Message)) :-
@@ -90,12 +90,15 @@ evaluate_rhs(ETS, RS, explist([E | ES]), ETS2, [VE | VS]) :-
 
 
 
-% Evaluating values.
-evaluate_rhs(ETS, RS, tabletype(FS), ETS1, [R]) :-
-   env_make(ETS, RS, FS, ETS1, [R | _]).
-
+% Values.
 evaluate_rhs(ETS, _, V, ETS, [V]) :-
    value(V).
+
+
+
+% Table constructor.
+evaluate_rhs(ETS, RS, tableconstructor(FS), ETS1, [R]) :-
+   env_make(ETS, RS, FS, ETS1, [R | _]).
 
 
 
@@ -237,8 +240,8 @@ evaluate_stat(ETS, RS, statementlist([S | SS]), ETS2, C, VS) :-
 
 
 % Build the environment.
-evaluate_stat([tabletype(FS)], _, 'std:initialise', [tabletype(FS2)], continue, []) :-
-   'std:et0'(tabletype(FS1)),
+evaluate_stat([table(FS)], _, 'std:initialise', [table(FS2)], continue, []) :-
+   'std:et0'(table(FS1)),
    append(FS, FS1, FS2).
 
 

@@ -33,9 +33,8 @@
 'std::type'(booleantype(_), 'type:boolean').
 'std::type'(numbertype(_), 'type:number').
 'std::type'(stringtype(_), 'type:string').
-'std::type'(tabletype(_), 'type:table').
+'std::type'(referencetype(_), 'type:table').
 'std::type'(functiontype(_, _, _), 'type:function').
-'std::type'(referencetype(_), 'type:reference').
 
 
 
@@ -44,25 +43,25 @@
 
 % Add a new empty table to the environment.
 env_make(ETS, RS, ETS1, RS1) :-
-   append(ETS, [tabletype([])], ETS1),
+   append(ETS, [table([])], ETS1),
    list_size(ETS1, Size),
    append([referencetype(Size)], RS, RS1).
 
 % Add a table with the given fields to the environment.
 env_make(ETS, RS, Fields, ETS1, RS1) :-
-   append(ETS, [tabletype(Fields)], ETS1),
+   append(ETS, [table(Fields)], ETS1),
    list_size(ETS1, Size),
    append([referencetype(Size)], RS, RS1).
 
 % Add a table with the key-value pairs to the environment.
 env_make(ETS, RS, ['...' | _], [], ETS1, RS1) :-
-   append(ETS, [tabletype(['...', niltype(nil)])], ETS1),
+   append(ETS, [table(['...', niltype(nil)])], ETS1),
    list_size(ETS1, Size),
    append([referencetype(Size)], RS, RS1).
 
 % Be wary of variadic expressions.
 env_make(ETS, RS, ['...' | _], Values, ETS1, RS1) :-
-   append(ETS, [tabletype(['...', Values])], ETS1),
+   append(ETS, [table(['...', Values])], ETS1),
    list_size(ETS1, Size),
    append([referencetype(Size)], RS, RS1).
 
@@ -133,46 +132,55 @@ list_size([_ | Sublist], Size) :-
 % Table manipulation.
 % ------------------------------------------------------------------------------
 
+% Tables (associative arrays).
+table([]).
+table([[Key, Value] | T]) :-
+   expression(Key),
+   Key \= niltype(nil),
+   expression(Value),
+   table(T).
+
+
 % Return the number of elements in a table.
-table_size(tabletype(Fields), Size) :- list_size(Fields, Size).
+table_size(table(Fields), Size) :- list_size(Fields, Size).
 
 
 
 % Create a table from two lists of keys and values.
-table_create([], _, tabletype([])).
-table_create([Key | Keys], [Value | Values], tabletype(Fields)) :-
-   table_create(Keys, Values, tabletype(T)),
+table_create([], _, table([])).
+table_create([Key | Keys], [Value | Values], table(Fields)) :-
+   table_create(Keys, Values, table(T)),
    append([[Key, Value]], T, Fields).
-table_create([Key | Keys], [], tabletype(Fields)) :-
-   table_create(Keys, [], tabletype(T)),
+table_create([Key | Keys], [], table(Fields)) :-
+   table_create(Keys, [], table(T)),
    append([[Key, niltype(nil)]], T, Fields).
 
 
 
 % Get a field value based on its key.
-table_get(tabletype([]), _, niltype(nil)).
-table_get(tabletype([[K, V] | _]),  K,  V).
-table_get(tabletype([[K, _] | T]), K1, V1) :-
+table_get(table([]), _, niltype(nil)).
+table_get(table([[K, V] | _]),  K,  V).
+table_get(table([[K, _] | T]), K1, V1) :-
    K \= K1,
-   table_get(tabletype(T), K1, V1).
+   table_get(table(T), K1, V1).
 
 
 
 % Return true if a field key exists, false otherwise.
-table_keyexists(tabletype([]), _, booleantype(false)).
-table_keyexists(tabletype([[K, _] | _]),  K, booleantype(true)).
-table_keyexists(tabletype([[K, _] | T]), K1, Exists) :-
+table_keyexists(table([]), _, booleantype(false)).
+table_keyexists(table([[K, _] | _]),  K, booleantype(true)).
+table_keyexists(table([[K, _] | T]), K1, Exists) :-
    K \= K1,
-   table_keyexists(tabletype(T), K1, Exists).
+   table_keyexists(table(T), K1, Exists).
 
 
 
 % Set the value of a field in the table.
-table_set(tabletype([]), Key, Value, tabletype([[Key, Value]])).
-table_set(tabletype([[K, _] | T]),  K,  V, tabletype([[K, V] |  T])).
-table_set(tabletype([[K, V] | T]), K1, V1, tabletype([[K, V] | T1])) :-
+table_set(table([]), Key, Value, table([[Key, Value]])).
+table_set(table([[K, _] | T]),  K,  V, table([[K, V] |  T])).
+table_set(table([[K, V] | T]), K1, V1, table([[K, V] | T1])) :-
    K1 \= K,
-   table_set(tabletype(T), K1, V1, tabletype(T1)).
+   table_set(table(T), K1, V1, table(T1)).
 
 
 
@@ -251,7 +259,7 @@ println(Line) :- write(Line), nl.
 
 % The initial environment table.
 % ------------------------------------------------------------------------------
-'std:et0'(tabletype([
+'std:et0'(table([
    [
       'type',
       functiontype(['value'], [return([unop(type, variable('value'))])], [])

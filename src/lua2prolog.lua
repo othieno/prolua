@@ -152,7 +152,7 @@ convert["Table"] = function(ASTNode)
          output = output .. ", "
       end
    end
-   return "tabletype([" .. output .. "])"
+   return "tableconstructor([" .. output .. "])"
 end
 
 -- Convert a variable argument type node into Prolog.
