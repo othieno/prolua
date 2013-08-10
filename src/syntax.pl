@@ -91,14 +91,6 @@ numbertype(N) :- number(N).
 % Strings. Note that the string value is verified in lua2prolog.
 stringtype(_).
 
-% Tables (associative arrays).
-tabletype([]).
-tabletype([[Key, Value] | T]) :-
-   expression(Key),
-   Key \= niltype(nil),
-   expression(Value),
-   tabletype(T).
-
 % Table references.
 referencetype(N) :-
    integer(N),
@@ -115,14 +107,16 @@ value(niltype(nil)).
 value(booleantype(B)) :- booleantype(B).
 value(numbertype(N)) :- numbertype(N).
 value(stringtype(S)) :- stringtype(S).
-value(tabletype(T)) :- tabletype(T).
-value(functiontype(PS, SS, RS)) :- functiontype(PS, SS, RS).
 value(referencetype(N)) :- referencetype(N).
+value(functiontype(PS, SS, RS)) :- functiontype(PS, SS, RS).
 
 
 
 % Expressions.
 % ------------------------------------------------------------------------------
+
+% Table constructor.
+tableconstructor(Fields) :- table(Fields).
 
 % Enclosed expressions.
 enclosed(Expression) :- expression(Expression).
@@ -136,9 +130,10 @@ access(Reference, Key) :-
    expression(Key).
 
 % Unary operators.
-unop(unm, Expression) :- expression(Expression).
-unop(not, Expression) :- expression(Expression).
-unop(len, Expression) :- expression(Expression).
+unop(type, Expression) :- expression(Expression).
+unop(unm,  Expression) :- expression(Expression).
+unop(not,  Expression) :- expression(Expression).
+unop(len,  Expression) :- expression(Expression).
 
 % Binary operators.
 binop(add, E1, E2) :- expression(E1), expression(E2).
@@ -166,12 +161,10 @@ functioncall(E, ES) :-
    expression(E),
    explist(ES).
 
-% Type operator.
-type(E) :-
-   expression(E).
-
 % The expression set.
 expression(Expression) :- value(Expression).
+expression(tableconstructor(FS)) :- tableconstructor(FS).
+expression(enclosed(E)) :- enclosed(E).
 expression(variable(Name)) :- variable(Name).
 expression(access(R, K)) :- access(R, K).
 expression('...').
@@ -179,7 +172,7 @@ expression(unop(N, E)) :- unop(N, E).
 expression(binop(N, E1, E2)) :- binop(N, E1, E2).
 expression(function(PS, SS)) :- function(PS, SS).
 expression(functioncall(E, ES)) :- functioncall(E, ES).
-expression(type(E)) :- type(E).
+
 
 
 
