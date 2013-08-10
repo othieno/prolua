@@ -174,7 +174,7 @@ end
 -- Let the input be a node representing '(e)'. This function returns the expression e
 -- converted into Prolog, thereby discarding the parentheses.
 convert["Paren"] = function(ASTNode)
-   return ASTNodeToProlog(ASTNode[1])
+   return "enclosed(" .. ASTNodeToProlog(ASTNode[1]) .. ")"
 end
 
 -- Convert a 'do .. end' node into Prolog.
