@@ -29,12 +29,24 @@
 % Type operator.
 % ------------------------------------------------------------------------------
 
-'std::type'(niltype(_), 'type:nil').
-'std::type'(booleantype(_), 'type:boolean').
-'std::type'(numbertype(_), 'type:number').
-'std::type'(stringtype(_), 'type:string').
-'std::type'(referencetype(_), 'type:table').
-'std::type'(functiontype(_, _, _), 'type:function').
+'std:type'(niltype(_), 'type:nil').
+'std:type'(booleantype(_), 'type:boolean').
+'std:type'(numbertype(_), 'type:number').
+'std:type'(stringtype(_), 'type:string').
+'std:type'(referencetype(_), 'type:table').
+
+
+
+
+% The rawvalue predicate.
+% ------------------------------------------------------------------------------
+
+'std:rawvalue'(niltype(nil), nil).
+'std:rawvalue'(booleantype(B), B).
+'std:rawvalue'(numbertype(N), N).
+'std:rawvalue'(stringtype(S), S).
+'std:rawvalue'(referencetype(R), R).
+'std:rawvalue'(functiontype(PS, SS, RS), functiontype(PS, SS, RS)).
 
 
 

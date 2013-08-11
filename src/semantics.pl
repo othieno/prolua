@@ -91,8 +91,12 @@ evaluate_rhs(ETS, RS, explist([E | ES]), ETS2, [VE | VS]) :-
 
 
 % Values.
-evaluate_rhs(ETS, _, V, ETS, [V]) :-
-   value(V).
+evaluate_rhs(ETS, _, niltype(nil), ETS, [niltype(nil)]).
+evaluate_rhs(ETS, _, booleantype(B), ETS, [booleantype(B)]).
+evaluate_rhs(ETS, _, numbertype(N), ETS, [numbertype(N)]).
+evaluate_rhs(ETS, _, stringtype(S), ETS, [stringtype(S)]).
+evaluate_rhs(ETS, _, referencetype(N), ETS, [referencetype(N)]).
+evaluate_rhs(ETS, _, functiontype(PS, SS, RS), ETS, [functiontype(PS, SS, RS)]).
 
 
 
@@ -147,46 +151,293 @@ evaluate_rhs(ETS, [R | RS], '...', ETS1, VS) :-
 
 
 
-% The type operator.
-evaluate_rhs(ETS, RS, unop(type, E), ETS1, error(Message)) :-
+% Unary operators.
+evaluate_rhs(ETS, RS, unop(_, E), ETS1, error(Message)) :-
    evaluate_rhs(ETS, RS, E, ETS1, error(Message)).
 
-evaluate_rhs(ETS, RS, unop(type, Expression), ETS1, [type(Type)]) :-
-   evaluate_rhs(ETS, RS, Expression, ETS1, [V | _]),
-   'std::type'(V, Type).
+
+
+% The type operator.
+evaluate_rhs(ETS, RS, unop(type, E), ETS1, [type(Type)]) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+   'std:type'(V, Type).
 
 
 
+% The unary minus operator.
+evaluate_rhs(ETS, RS, unop(unm, E), ETS1, [numbertype(M)]) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [numbertype(N) | _]),
+   M is -N.
 
-
-% Evaluate unary operators.                                                                           TODO
-% Evaluate binary operators.                                                                          TODO
-
-
-
-
-
-
-
+evaluate_rhs(ETS, RS, unop(unm, E), ETS1, error('\'-\' operand is not a number.')) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+   \+member(V, [numbertype(_)]).
 
 
 
+% The not operator.
+evaluate_rhs(ETS, RS, unop(not, E), ETS1, [booleantype(true)]) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+   member(V, [niltype(nil), booleantype(false)]).
+
+evaluate_rhs(ETS, RS, unop(not, E), ETS1, [booleantype(false)]) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+   \+member(V, [niltype(nil), booleantype(false)]).
 
 
 
+% The length operator.
+evaluate_rhs(ETS, RS, unop(len, E), ETS1, [numbertype(Size)]) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [referencetype(N) | _]),
+   env_gettable(ETS1, referencetype(N), T),
+   table_size(T, Size).
+
+evaluate_rhs(ETS, RS, unop(len, E), ETS1, [numbertype(Size)]) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [stringtype(S) | _]),
+   atom_length(S, Size).
+
+evaluate_rhs(ETS, RS, unop(len, E), ETS1, error('\'#\' operand is not a table or string.')) :-
+   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+   \+member(V, [referencetype(_), stringtype(_)]).
 
 
 
+% Binary operators.
+evaluate_rhs(ETS, RS, binop(_, E1, _), ETS1, error(Message)) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, error(Message)).
+
+evaluate_rhs(ETS, RS, binop(_, E1, E2), ETS2, error(Message)) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, _),
+   evaluate_rhs(ETS1, RS, E2, ETS2, error(Message)).
 
 
 
+% The addition operator.
+evaluate_rhs(ETS, RS, binop(add, E1, E2), ETS2, [numbertype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   C is A + B.
 
 
 
+% The subtraction operator.
+evaluate_rhs(ETS, RS, binop(sub, E1, E2), ETS2, [numbertype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   C is A - B.
 
 
 
+% The multiplication operator.
+evaluate_rhs(ETS, RS, binop(mul, E1, E2), ETS2, [numbertype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   C is A * B.
 
+
+
+% The division operator.
+evaluate_rhs(ETS, RS, binop(div, E1, E2), ETS2, [numbertype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   C is A / B.
+
+
+
+% The modulo operator.
+evaluate_rhs(ETS, RS, binop(mod, E1, E2), ETS2, [numbertype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   C is A mod B.
+
+
+
+% The exponent operator.
+evaluate_rhs(ETS, RS, binop(pow, E1, E2), ETS2, [numbertype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   C is A ** B.
+
+
+
+% The equality operator.
+evaluate_rhs(ETS, RS, binop(eq, E1, E2), ETS2, [booleantype(false)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   'std:type'(V1, T1),
+   'std:type'(V2, T2),
+   T1 \= T2.
+
+evaluate_rhs(ETS, RS, binop(eq, E1, E2), ETS2, [booleantype(true)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   'std:rawvalue'(V1, RV),
+   'std:rawvalue'(V2, RV).
+
+evaluate_rhs(ETS, RS, binop(eq, E1, E2), ETS2, [booleantype(false)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   'std:rawvalue'(V1, RV1),
+   'std:rawvalue'(V2, RV2),
+   RV1 \= RV2.
+
+
+
+% The less-than operator.
+evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(true)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   A < B.
+
+evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(false)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   A >= B.
+
+evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(true)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+   A @< B.
+
+evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(false)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+   A @>= B.
+
+evaluate_rhs(ETS, RS, binop(lt, E1, _), ETS1, error('Left operand is not a number or string.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+   \+member(V, [numbertype(_), stringtype(_)]).
+
+evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, error('Right operand is not a number or string.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+   member(V1, [numbertype(_), stringtype(_)]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   \+member(V2, [numbertype(_), stringtype(_)]).
+
+evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, error('Right operand is not a number.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(_) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
+   V \= numbertype(_).
+
+evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, error('Right operand is not a string.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(_) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
+   V \= stringtype(_).
+
+
+
+% The less-than-or-equal operator.
+evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(true)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   A =< B.
+
+evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(false)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   A > B.
+
+evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(true)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+   A @=< B.
+
+evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(false)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+   A @> B.
+
+evaluate_rhs(ETS, RS, binop(le, E1, _), ETS1, error('Left operand is not a number or string.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+   \+member(V, [numbertype(_), stringtype(_)]).
+
+evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, error('Right operand is not a number or string.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+   member(V1, [numbertype(_), stringtype(_)]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   \+member(V2, [numbertype(_), stringtype(_)]).
+
+evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, error('Right operand is not a number.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(_) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
+   V \= numbertype(_).
+
+evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, error('Right operand is not a string.')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(_) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
+   V \= stringtype(_).
+
+
+
+% The greater-than operator.
+evaluate_rhs(ETS, RS, binop(gt, E1, E2), ETS1, VS) :-
+   evaluate_rhs(ETS, RS, binop(lt, E2, E1), ETS1, VS).
+
+
+
+% The greater-than-or-equal operator.
+evaluate_rhs(ETS, RS, binop(ge, E1, E2), ETS1, VS) :-
+   evaluate_rhs(ETS, RS, binop(le, E2, E1), ETS1, VS).
+
+
+
+% The and operator.
+evaluate_rhs(ETS, RS, binop(and, E1, _), ETS1, [V]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+   member(V, [niltype(nil), booleantype(false)]).
+
+evaluate_rhs(ETS, RS, binop(and, E1, E2), ETS2, VS) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+   \+member(V, [niltype(nil), booleantype(false)]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, VS).
+
+
+
+% The or operator.
+evaluate_rhs(ETS, RS, binop(or, E1, _), ETS1, [V]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+   \+member(V, [niltype(nil), booleantype(false)]).
+
+evaluate_rhs(ETS, RS, binop(or, E1, E2), ETS2, VS) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+   member(V, [niltype(nil), booleantype(false)]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, VS).
+
+
+
+% The concatenation operator.
+evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, [stringtype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+   atom_concat(A, B, C).
+
+evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, [numbertype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+   atom_length(B, Length),
+   C is ((A * (10 ** Length)) + B).
+
+evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, [stringtype(C)]) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+   member(V1, [numbertype(_), stringtype(_)]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   member(V2, [numbertype(_), stringtype(_)]),
+   'std:type'(V1, T1),
+   'std:type'(V2, T2),
+   T1 \= T2,
+   'std:rawvalue'(V1, A),
+   'std:rawvalue'(V2, B),
+   atom_concat(A, B, C).
+
+evaluate_rhs(ETS, RS, binop(concat, E1, _), ETS1, error('Left operand is not a number or string')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+   \+member(V, [numbertype(_), stringtype(_)]).
+
+evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, error('Right operand is not a number or string')) :-
+   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+   member(V1, [numbertype(_), stringtype(_)]),
+   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   \+member(V2, [numbertype(_), stringtype(_)]).
 
 
 
@@ -201,7 +452,7 @@ evaluate_rhs(ETS, RS, functioncall(E, _), ETS1, error(Message)) :-
 
 evaluate_rhs(ETS, RS, functioncall(E, _), ETS1, error('Expression is not a function')) :-
    evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
-   V \= functiontype(_, _, _), !.
+   V \= functiontype(_, _, _).
 
 evaluate_rhs(ETS, RS, functioncall(E, ES), ETS2, error(Message)) :-
    evaluate_rhs(ETS, RS, E, ETS1, [functiontype(_, _, _) | _]),
