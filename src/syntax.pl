@@ -149,7 +149,7 @@ binop( gt, E1, E2) :- expression(E1), expression(E2).
 binop( ge, E1, E2) :- expression(E1), expression(E2).
 binop(and, E1, E2) :- expression(E1), expression(E2).
 binop( or, E1, E2) :- expression(E1), expression(E2).
-binop(cat, E1, E2) :- expression(E1), expression(E2).
+binop(concat, E1, E2) :- expression(E1), expression(E2).
 
 % Function definition.
 function(PS, SS) :-
