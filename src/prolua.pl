@@ -21,12 +21,12 @@
 % THE SOFTWARE.
 
 % Run the interpreter. The main/0 predicate loads a file specified in the command
-% line arguments after the '--' flag before interpreting it's content. The input
-% file should contain a program/1 predicate with it's argument being a list of
-% statements (instructions). When the interpreter is done, the program is exited.
+% line arguments after the '--' flag, that should contain the chunk/1 and arguments/1
+% predicates. These predicates provide a list of statements and arguments,
+% respectively, which will then be passed onto the main/2 predicate.
 main :-
    current_prolog_flag(argv, Arguments),
-   append(_, [--, Filename | _], Arguments), !,
+   append(_, [--, Filename | _], Arguments),
    consult(Filename),
    chunk(Statements),
    arguments(CommandLineArguments),
@@ -34,25 +34,14 @@ main :-
    halt.
 
 % Evaluate a list of statements. Before we can evaluate the statements, we load
-% the standard, syntax and semantics database, then evaluate the program.
-% Remember that a chunk is handled as the body of an anonymous function with a
-% variable number of arguments. All we do is evaluate a function call to this
-% anonymous function and print the return value and since we wish to view the
-% return value, the function call is evaluated as an expression rather than a
-% statement.
+% the syntax, semantics and standard database, then evaluate the Lua program.
+% When evaluation is complete, the execution environment, any results, as well
+% as runtime statistics are printed.
 main(Statements, CommandLineArguments) :-
-   consult('standard.pl'),
    consult('syntax.pl'),
    consult('semantics.pl'),
-   %debug,
-   'env:initialise'(Statements, ENV0),
-   evaluate_rhs(ENV0, functioncall(variable('$prolua:main'), CommandLineArguments), _, R),
-%   println('Execution environment ----------------------------------------------'),
-%   'std:printfe'(ENV1),
-%   println('--------------------------------------------------------------------'),
-   'std:printfr'(R),
-   'std:printfs'.
-
-% In case of an evaluation error, print an error message.
-main(_) :-
-   write('Error! Could not evaluate the program.'), nl.
+   consult('standard.pl'),
+   'evaluate:chunk'(Statements, CommandLineArguments, Environment, Result),
+   'print:result'(Result),
+   'print:statistics', nl,
+   'print:environment'(Environment).
