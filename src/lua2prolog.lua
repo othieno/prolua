@@ -267,6 +267,8 @@ convert["Local"] = function(ASTNode)
       -- Does the variable have an initial value?
       if (i <= nDeclaredvalues) then
          output = output .. ", " .. ASTNodeToProlog((ASTNode[2])[i])
+      else
+         output = output .. ", niltype(nil)"
       end
       -- Close the parenthesis.
       if (i < nDeclaredVariables) then

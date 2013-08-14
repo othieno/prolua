@@ -29,34 +29,34 @@
 % ------------------------------------------------------------------------------
 
 % Evaluate a list of left-hand side (LHS) expressions.
-evaluate_lhs(ETS, _, explist([]), ETS, []).
-
-evaluate_lhs(ETS, RS, explist([E | _]), ETS1, error(Message)) :-
-   evaluate_lhs(ETS, RS, E, ETS1, error(Message)), !.
-
-evaluate_lhs(ETS, RS, explist([E | ES]), ETS2, error(Message)) :-
-   evaluate_lhs(ETS, RS, E, ETS1, _),
-   evaluate_lhs(ETS1, RS, explist(ES), ETS2, error(Message)), !.
-
-evaluate_lhs(ETS, RS, explist([E | ES]), ETS2, Result) :-
-   evaluate_lhs(ETS, RS, E, ETS1, [R, K]),
-   evaluate_lhs(ETS1, RS, explist(ES), ETS2, VS),
-   append([[R, K]], VS, Result).
+evaluate_lhs(ENV0, explist([]), ENV0, []).
+evaluate_lhs(ENV0, explist([E | _]), ENV1, error(Message)) :-
+   evaluate_lhs(ENV0, E, ENV1, error(Message)).
+evaluate_lhs(ENV0, explist([E | ES]), ENV2, error(Message)) :-
+   evaluate_lhs(ENV0, E, ENV1, _),
+   evaluate_lhs(ENV1, explist(ES), ENV2, error(Message)).
+evaluate_lhs(ENV0, explist([E | ES]), ENV2, Result) :-
+   evaluate_lhs(ENV0, E, ENV1, [ECID, K]),
+   evaluate_lhs(ENV1, explist(ES), ENV2, AS),
+   append([[ECID, K]], AS, Result).
 
 
 
 % Evaluate a left-hand side variable.
-evaluate_lhs(ETS, [R | _], variable(N), ETS, [R, N]) :-
-   env_keyexists(ETS, R, N, booleantype(true)).
+evaluate_lhs([EC], variable(N), [EC], [ECID, N]) :-
+   'env:getIdentifier'(EC, ECID).
+evaluate_lhs([EC | ECS], variable(N), [EC | ECS], [ECID, N]) :-
+   'env:keyExists'(EC, N),
+   'env:getIdentifier'(EC, ECID).
+evaluate_lhs([EC | ECS], variable(N), [EC | ECS], [ECID, N]) :-
+   \+'env:keyExists'(EC, N),
+   evaluate_lhs(ECS, variable(N), ECS, [ECID, N]).
 
-evaluate_lhs(ETS, [R], variable(N), ETS, [R, N]).
-
-evaluate_lhs(ETS, [R_i | RS], variable(N), ETS, Address) :-
-   env_keyexists(ETS, R_i, N, booleantype(false)),
-   evaluate_lhs(ETS, RS, variable(N), _, Address).
 
 
 
+
+                                                                                                      /*
 % Evaluate a left-hand side field accessor.
 evaluate_lhs(ETS, RS, access(R, _), ETS1, error(Message)) :-
    evaluate_rhs(ETS, RS, R, ETS1, error(Message)).
@@ -68,66 +68,67 @@ evaluate_lhs(ETS, RS, access(R, K), ETS2, error(Message)) :-
 evaluate_lhs(ETS, RS, access(R, K), ETS2, [V_r, V_k]) :-
    evaluate_rhs(ETS, RS, R, ETS1, [V_r | _]),
    evaluate_rhs(ETS1, RS, K, ETS2, [V_k | _]).
-
+                                                                                                      */
 
 
 % Evaluate a list of right-hand side (RHS) expressions.
-evaluate_rhs(ETS, _, explist([]), ETS, []).
-
-evaluate_rhs(ETS, RS, explist([E | _]), ETS1, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, error(Message)), !.
-
-evaluate_rhs(ETS, RS, explist([E | ES]), ETS2, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, _),
-   evaluate_rhs(ETS1, RS, explist(ES), ETS2, error(Message)), !.
-
-evaluate_rhs(ETS, RS, explist([E]), ETS1, VS) :-
-   evaluate_rhs(ETS, RS, E, ETS1, VS).
-
-evaluate_rhs(ETS, RS, explist([E | ES]), ETS2, [VE | VS]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [VE | _]),
-   evaluate_rhs(ETS1, RS, explist(ES), ETS2, VS).
+evaluate_rhs(ENV0, explist([]), ENV0, []).
+evaluate_rhs(ENV0, explist([E | _]), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_rhs(ENV0, explist([E | ES]), ENV2, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, _),
+   evaluate_rhs(ENV1, explist(ES), ENV2, error(Message)).
+evaluate_rhs(ENV0, explist([E]), ENV1, VS) :-
+   evaluate_rhs(ENV0, E, ENV1, VS).
+evaluate_rhs(ENV0, explist([E | ES]), ENV2, [VE | VS]) :-
+   ES \== [],
+   evaluate_rhs(ENV0, E, ENV1, [VE | _]),
+   evaluate_rhs(ENV1, explist(ES), ENV2, VS).
 
 
 
-% Values.
-evaluate_rhs(ETS, _, niltype(nil), ETS, [niltype(nil)]).
-evaluate_rhs(ETS, _, booleantype(B), ETS, [booleantype(B)]).
-evaluate_rhs(ETS, _, numbertype(N), ETS, [numbertype(N)]).
-evaluate_rhs(ETS, _, stringtype(S), ETS, [stringtype(S)]).
-evaluate_rhs(ETS, _, referencetype(N), ETS, [referencetype(N)]).
-evaluate_rhs(ETS, _, functiontype(PS, SS, RS), ETS, [functiontype(PS, SS, RS)]).
+% Evaluate values.
+evaluate_rhs(ENV0, niltype(nil), ENV0, [niltype(nil)]).
+evaluate_rhs(ENV0, booleantype(false), ENV0, [booleantype(false)]).
+evaluate_rhs(ENV0, booleantype(true), ENV0, [booleantype(true)]).
+evaluate_rhs(ENV0, numbertype(N), ENV0, [numbertype(N)]).
+evaluate_rhs(ENV0, stringtype(S), ENV0, [stringtype(S)]).
+evaluate_rhs(ENV0, referencetype(table, T), ENV0, [referencetype(table, T)]).
+evaluate_rhs(ENV0, referencetype(function, F), ENV0, [referencetype(function, F)]).
 
 
 
 % Table constructor.
+evaluate_rhs(ENV0, tableconstructor([]), ENV0, [table([])]).
+                                                                                                      /*
+
 evaluate_rhs(ETS, RS, tableconstructor(FS), ETS1, [R]) :-
    env_make(ETS, RS, FS, ETS1, [R | _]).
+                                                                                                      */
+
 
 
 
 % Enclosed expressions.
-evaluate_rhs(ETS, RS, enclosed(E), ETS1, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, error(Message)), !.
-
-evaluate_rhs(ETS, RS, enclosed(E), ETS1, []) :-
-   evaluate_rhs(ETS, RS, E, ETS1, []).
-
-evaluate_rhs(ETS, RS, enclosed(E), ETS1, [V]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]).
+evaluate_rhs(ENV0, enclosed(E), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_rhs(ENV0, enclosed(E), ENV1, []) :-
+   evaluate_rhs(ENV0, E, ENV1, []).
+evaluate_rhs(ENV0, enclosed(E), ENV1, [V]) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]).
 
 
 
 % Evaluate a right-hand side variable.
-evaluate_rhs(ETS, RS, variable(N), ETS1, error(Message)) :-
-   evaluate_lhs(ETS, RS, variable(N), ETS1, error(Message)), !.
-
-evaluate_rhs(ETS, RS, variable(N), ETS, [V]) :-
-   evaluate_lhs(ETS, RS, variable(N), _, [R, K]),
-   env_getvalue(ETS, R, K, V).
-
+evaluate_rhs(ENV0, variable(N), ENV1, error(Message)) :-
+   evaluate_lhs(ENV0, variable(N), ENV1, error(Message)).
+evaluate_rhs(ENV0, variable(N), ENV1, [V]) :-
+   evaluate_lhs(ENV0, variable(N), ENV1, [ECID, N]),
+   'env:getValue'(ENV1, ECID, N, V).
 
 
+
+                                                                                                            /*
 % Evaluate a right-hand side field accessor.
 evaluate_rhs(ETS, RS, access(R, K), ETS1, error(Message)) :-
    evaluate_lhs(ETS, RS, access(R, K), ETS1, error(Message)), !.
@@ -135,35 +136,43 @@ evaluate_rhs(ETS, RS, access(R, K), ETS1, error(Message)) :-
 evaluate_rhs(ETS, RS, access(R, K), ETS1, [V]) :-
    evaluate_lhs(ETS, RS, access(R, K), ETS1, [R1, K1]),
    env_getvalue(ETS1, R1, K1, V).
+                                                                                                            */
 
 
 
 % Evaluate a variadic expression.
-evaluate_rhs(ETS, [], '...', ETS, error('\'...\' is not defined.')).
-
-evaluate_rhs(ETS, [R | _], '...', ETS, VS) :-
-   env_keyexists(ETS, R, '...', booleantype(true)),
-   env_getvalue(ETS, R, '...', VS).
-
-evaluate_rhs(ETS, [R | RS], '...', ETS1, VS) :-
-   env_keyexists(ETS, R, '...', booleantype(false)),
-   evaluate_rhs(ETS, RS, '...', ETS1, VS).
+evaluate_rhs([EC], '...', [EC], error('\'...\' is not defined.')) :-
+   \+'env:keyExists'(EC, '...').
+evaluate_rhs([EC], '...', [EC], VS) :-
+   'env:keyExists'(EC, '...'),
+   'env:getValue'(EC, '...', VS).
+evaluate_rhs([EC | ECS], '...', [EC | ECS], VS) :-
+   'env:keyExists'(EC, '...'),
+   'env:getValue'(EC, '...', VS).
+evaluate_rhs([EC | ECS], '...', [EC | ECS], VS) :-
+   \+'env:keyExists'(EC, '...'),
+   evaluate_rhs(ECS, '...', ECS, VS).
 
 
 
 % Unary operators.
-evaluate_rhs(ETS, RS, unop(_, E), ETS1, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, error(Message)).
+evaluate_rhs(ENV0, unop(_, E), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
 
 
 
 % The type operator.
-evaluate_rhs(ETS, RS, unop(type, E), ETS1, [type(Type)]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+evaluate_rhs(ENV0, unop(type, E), ENV1, [type(Type)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
    'std:type'(V, Type).
 
 
 
+
+
+
+
+                                                                                                            /*
 % The unary minus operator.
 evaluate_rhs(ETS, RS, unop(unm, E), ETS1, [numbertype(M)]) :-
    evaluate_rhs(ETS, RS, E, ETS1, [numbertype(N) | _]),
@@ -438,37 +447,42 @@ evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, error('Right operand is not a
    member(V1, [numbertype(_), stringtype(_)]),
    evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
    \+member(V2, [numbertype(_), stringtype(_)]).
-
+                                                                                                            */
 
 
 % Evaluate a function definition.
-evaluate_rhs(ETS, _, function(PS, SS), ETS, [functiontype(PS, SS, [])]).
+evaluate_rhs(ENV0, functiondef(PS, SS), ENV0, [function(PS, SS, [])]).
 
 
 
 % Evaluate a function call.
-evaluate_rhs(ETS, RS, functioncall(E, _), ETS1, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, error(Message)), !.
+evaluate_rhs(ENV0, functioncall(E, _), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Expression is not callable')) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
+   V \= referencetype(_, _, _).
+evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
+   evaluate_rhs(ENV0, E, ENV1, [referencetype(function, ECID, Address) | _]),
+   evaluate_rhs(ENV1, explist(ES), ENV2, VS_es),
+   'env:getValue'(ENV2, ECID, Address, function(PS, SS, [])),
+   'env:addContext'(ENV2, PS, VS_es, ENV3),
+   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss).
+evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
+   evaluate_rhs(ENV0, E, ENV1, [referencetype(function, ECID, Address) | _]),
+   evaluate_rhs(ENV1, explist(ES), ENV2, VS_es),
+   'env:getValue'(ENV2, ECID, Address, function(PS, SS, ENVf)),
+   ENVf \== [],
+   'env:addContext'(ENVf, PS, VS_es, ENV3),
+   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss).
 
-evaluate_rhs(ETS, RS, functioncall(E, _), ETS1, error('Expression is not a function')) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
-   V \= functiontype(_, _, _).
 
-evaluate_rhs(ETS, RS, functioncall(E, ES), ETS2, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [functiontype(_, _, _) | _]),
-   evaluate_rhs(ETS1, RS, explist(ES), ETS2, error(Message)), !.
+evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Metatables not implemented yet!')) :-             % TODO
+   evaluate_rhs(ENV0, E, ENV1, [referencetype(table, _, _) | _]).
 
-evaluate_rhs(ETS, RS, functioncall(E, ES), ETS4, VS_ss) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [functiontype(PS, SS, []) | _]),
-   evaluate_rhs(ETS1, RS, explist(ES), ETS2, VS_es),
-   env_make(ETS2, RS, PS, VS_es, ETS3, RS1),
-   evaluate_stat(ETS3, RS1, statementlist(SS), ETS4, _, VS_ss).
 
-evaluate_rhs(ETS, RS, functioncall(E, ES), ETS4, VS_ss) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [functiontype(PS, SS, RS_f) | _]),
-   evaluate_rhs(ETS1, RS, explist(ES), ETS2, VS_es),
-   env_make(ETS2, RS_f, PS, VS_es, ETS3, RS1),
-   evaluate_stat(ETS3, RS1, statementlist(SS), ETS4, _, VS_ss).
+
+
+
 
 
 
@@ -476,28 +490,21 @@ evaluate_rhs(ETS, RS, functioncall(E, ES), ETS4, VS_ss) :-
 % ------------------------------------------------------------------------------
 
 % Evaluate a list of statements.
-evaluate_stat(ETS, _, statementlist([]), ETS, continue, []).
-
-evaluate_stat(ETS, RS, statementlist([S | _]), ETS1, return, VS) :-
-   evaluate_stat(ETS, RS, S, ETS1, return, VS).
-
-evaluate_stat(ETS, RS, statementlist([S | _]), ETS1, break, []) :-
-   evaluate_stat(ETS, RS, S, ETS1, break, _).
-
-evaluate_stat(ETS, RS, statementlist([S | _]), ETS1, error, Error) :-
-   evaluate_stat(ETS, RS, S, ETS1, error, Error).
-
-evaluate_stat(ETS, RS, statementlist([S | SS]), ETS2, C, VS) :-
-   evaluate_stat(ETS, RS, S, ETS1, continue, _),
-   evaluate_stat(ETS1, RS, statementlist(SS), ETS2, C, VS).
+evaluate_stat(ENV0, statementlist([]), ENV0, continue, []).
+evaluate_stat(ENV0, statementlist([S | _]), ENV1, return, VS) :-
+   evaluate_stat(ENV0, S, ENV1, return, VS).
+evaluate_stat(ENV0, statementlist([S | _]), ENV1, break, []) :-
+   evaluate_stat(ENV0, S, ENV1, break, []).
+evaluate_stat(ENV0, statementlist([S | _]), ENV1, error, Error) :-
+   evaluate_stat(ENV0, S, ENV1, error, Error).
+evaluate_stat(ENV0, statementlist([S | SS]), ENV2, CTRL, VS) :-
+   evaluate_stat(ENV0, S, ENV1, continue, _),
+   evaluate_stat(ENV1, statementlist(SS), ENV2, CTRL, VS).
 
 
 
-% Build the environment.
-evaluate_stat([table(FS)], _, 'std:initialise', [table(FS2)], continue, []) :-
-   'std:et0'(table(FS1)),
-   append(FS, FS1, FS2).
 
+                                                                                                      /*
 
 
 % The assignment statement.
@@ -601,27 +608,26 @@ evaluate_stat(ETS, RS, if(E, S, _), ETS2, C, VS) :-
    evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]),
    evaluate_stat(ETS1, RS, S, ETS2, C, VS).
+                                                                                                      */
 
 
 
-% Local variables.
-evaluate_stat(ETS, RS, localvariable(_, Expression), ETS1, error, error(Message)) :-
-   evaluate_rhs(ETS, RS, Expression, ETS1, error(Message)).
-
-evaluate_stat(ETS, [R | RS], localvariable(Name, Expression), ETS2, continue, []) :-
-   evaluate_rhs(ETS, [R | RS], Expression, ETS1, [V | _]),
-   env_setvalue(ETS1, R, Name, V, ETS2).
+evaluate_stat([EC | ECS], localvariable(N, E), [EC2 | ECS1], continue, []) :-
+   evaluate_rhs([EC | ECS], E, [EC1 | ECS1], [V | _]),
+   'env:setValue'(EC1, N, V, EC2).
+evaluate_stat(ENV0, localvariable(_, E), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
 
 
 
 % The return statement.
-evaluate_stat(ETS, RS, return(Expressions), ETS1, error, error(Message)) :-
-   evaluate_rhs(ETS, RS, explist(Expressions), ETS1, error(Message)).
-
-evaluate_stat(ETS, RS, return(Expressions), ETS1, return, VS) :-
-   evaluate_rhs(ETS, RS, explist(Expressions), ETS1, VS).
+evaluate_stat(ENV0, return(ES), ENV1, return, VS) :-
+   evaluate_rhs(ENV0, explist(ES), ENV1, VS),
+   VS \= error(_).
+evaluate_stat(ENV0, return(ES), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, explist(ES), ENV1, error(Message)).
 
 
 
 % Break statement.
-evaluate_stat(ETS, _, break, ETS, break, []).
+evaluate_stat(ENV0, break, ENV0, break, []).

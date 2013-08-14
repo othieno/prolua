@@ -40,15 +40,17 @@ main :-
 % anonymous function and print the return value and since we wish to view the
 % return value, the function call is evaluated as an expression rather than a
 % statement.
-main(SS, CLAS) :-
+main(Statements, CommandLineArguments) :-
    consult('standard.pl'),
    consult('syntax.pl'),
    consult('semantics.pl'),
-   append(['std:initialise'], SS, SS1),
-   % 'std:printfi'(SS1),
-   evaluate_rhs([], [], functioncall(function(['...'], SS1), CLAS), ETS, R),
+   %debug,
+   'env:initialise'(Statements, ENV0),
+   evaluate_rhs(ENV0, functioncall(variable('$prolua:main'), CommandLineArguments), _, R),
+%   println('Execution environment ----------------------------------------------'),
+%   'std:printfe'(ENV1),
+%   println('--------------------------------------------------------------------'),
    'std:printfr'(R),
-   'std:printfe'(ETS),
    'std:printfs'.
 
 % In case of an evaluation error, print an error message.
