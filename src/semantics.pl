@@ -458,7 +458,7 @@ evaluate_rhs(ENV0, functiondef(PS, SS), ENV0, [function(PS, SS, [])]).
 % Evaluate a function call.
 evaluate_rhs(ENV0, functioncall(E, _), ENV1, error(Message)) :-
    evaluate_rhs(ENV0, E, ENV1, error(Message)).
-evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Expression is not callable')) :-
+evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Expression is not a callable object.')) :-
    evaluate_rhs(ENV0, E, ENV1, [V | _]),
    V \= referencetype(_, _, _).
 evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
@@ -623,7 +623,7 @@ evaluate_stat(ENV0, localvariable(_, E), ENV1, error, error(Message)) :-
 % The return statement.
 evaluate_stat(ENV0, return(ES), ENV1, return, VS) :-
    evaluate_rhs(ENV0, explist(ES), ENV1, VS),
-   VS \= error(_).
+   VS \== error(_).
 evaluate_stat(ENV0, return(ES), ENV1, error, error(Message)) :-
    evaluate_rhs(ENV0, explist(ES), ENV1, error(Message)).
 
@@ -631,3 +631,13 @@ evaluate_stat(ENV0, return(ES), ENV1, error, error(Message)) :-
 
 % Break statement.
 evaluate_stat(ENV0, break, ENV0, break, []).
+
+
+
+% Evaluate a chunk.
+'evaluate:chunk'([], _, [], []).
+'evaluate:chunk'(Statements, Arguments, Environment, Result) :-
+	'env:addContext'([], ['...'], Arguments, [context(0, M)]),
+	'env:mapping0'(M0),
+	append(M, M0, M1),
+	evaluate_stat([context(0, M1)], statementlist(Statements), Environment, _, Result).
