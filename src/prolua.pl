@@ -43,5 +43,5 @@ main(Statements, CommandLineArguments) :-
    consult('standard.pl'),
    'evaluate:chunk'(Statements, CommandLineArguments, Environment, Result),
    'print:result'(Result),
-   'print:statistics', nl,
-   'print:environment'(Environment).
+   'print:environment'(Environment),
+   'print:statistics'.

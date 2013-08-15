@@ -129,7 +129,7 @@ convert["Function"] = function(ASTNode)
          end
       end
    end
-   return "function([" .. parameters .. "], [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
+   return "functiondef([" .. parameters .. "], [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 end
 
 -- Convert a table type node into Prolog.

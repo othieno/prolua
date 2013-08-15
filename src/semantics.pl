@@ -35,10 +35,9 @@ evaluate_lhs(ENV0, explist([E | _]), ENV1, error(Message)) :-
 evaluate_lhs(ENV0, explist([E | ES]), ENV2, error(Message)) :-
    evaluate_lhs(ENV0, E, ENV1, _),
    evaluate_lhs(ENV1, explist(ES), ENV2, error(Message)).
-evaluate_lhs(ENV0, explist([E | ES]), ENV2, Result) :-
-   evaluate_lhs(ENV0, E, ENV1, [ECID, K]),
-   evaluate_lhs(ENV1, explist(ES), ENV2, AS),
-   append([[ECID, K]], AS, Result).
+evaluate_lhs(ENV0, explist([E | ES]), ENV2, [[ECID, K] | AS]) :-
+   evaluate_lhs(ENV0, E, ENV1, [ECID, K]), !,
+   evaluate_lhs(ENV1, explist(ES), ENV2, AS).
 
 
 
@@ -82,29 +81,82 @@ evaluate_rhs(ENV0, explist([E]), ENV1, VS) :-
    evaluate_rhs(ENV0, E, ENV1, VS).
 evaluate_rhs(ENV0, explist([E | ES]), ENV2, [VE | VS]) :-
    ES \== [],
-   evaluate_rhs(ENV0, E, ENV1, [VE | _]),
+   evaluate_rhs(ENV0, E, ENV1, [VE | _]), !,
    evaluate_rhs(ENV1, explist(ES), ENV2, VS).
 
 
 
 % Evaluate values.
 evaluate_rhs(ENV0, niltype(nil), ENV0, [niltype(nil)]).
-evaluate_rhs(ENV0, booleantype(false), ENV0, [booleantype(false)]).
-evaluate_rhs(ENV0, booleantype(true), ENV0, [booleantype(true)]).
+evaluate_rhs(ENV0, booleantype(B), ENV0, [booleantype(B)]) :-
+   member(B, [false, true]).
 evaluate_rhs(ENV0, numbertype(N), ENV0, [numbertype(N)]).
 evaluate_rhs(ENV0, stringtype(S), ENV0, [stringtype(S)]).
-evaluate_rhs(ENV0, referencetype(table, T), ENV0, [referencetype(table, T)]).
-evaluate_rhs(ENV0, referencetype(function, F), ENV0, [referencetype(function, F)]).
+evaluate_rhs(ENV0, referencetype(Type, ECID, K), ENV0, [referencetype(Type, ECID, K)]) :-
+   member(Type, [table, function]).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 % Table constructor.
-evaluate_rhs(ENV0, tableconstructor([]), ENV0, [table([])]).
-                                                                                                      /*
+evaluate_rhs(ENV0, tableconstructor([]), [EC1 | ECS], [Reference]) :-
+   [EC | ECS] = ENV0,
+   'env:addObject'(EC, table([]), EC1, Reference).
+evaluate_rhs(ENV0, tableconstructor([_ | _]), [EC1 | ECS], [Reference]) :-
+   [EC | ECS] = ENV0,
+   'env:addObject'(EC, table(['???']), EC1, Reference).
 
-evaluate_rhs(ETS, RS, tableconstructor(FS), ETS1, [R]) :-
-   env_make(ETS, RS, FS, ETS1, [R | _]).
-                                                                                                      */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -131,7 +183,7 @@ evaluate_rhs(ENV0, variable(N), ENV1, [V]) :-
                                                                                                             /*
 % Evaluate a right-hand side field accessor.
 evaluate_rhs(ETS, RS, access(R, K), ETS1, error(Message)) :-
-   evaluate_lhs(ETS, RS, access(R, K), ETS1, error(Message)), !.
+   evaluate_lhs(ETS, RS, access(R, K), ETS1, error(Message)).
 
 evaluate_rhs(ETS, RS, access(R, K), ETS1, [V]) :-
    evaluate_lhs(ETS, RS, access(R, K), ETS1, [R1, K1]),
@@ -143,12 +195,16 @@ evaluate_rhs(ETS, RS, access(R, K), ETS1, [V]) :-
 % Evaluate a variadic expression.
 evaluate_rhs([EC], '...', [EC], error('\'...\' is not defined.')) :-
    \+'env:keyExists'(EC, '...').
-evaluate_rhs([EC], '...', [EC], VS) :-
+evaluate_rhs([EC], '...', [EC], [V | VS]) :-
    'env:keyExists'(EC, '...'),
-   'env:getValue'(EC, '...', VS).
+   'env:getValue'(EC, '...', [V | VS]).
 evaluate_rhs([EC | ECS], '...', [EC | ECS], VS) :-
    'env:keyExists'(EC, '...'),
-   'env:getValue'(EC, '...', VS).
+   'env:getValue'(EC, '...', VS),
+   VS \== [].
+evaluate_rhs([EC | ECS], '...', [EC | ECS], [niltype(nil)]) :-
+   'env:keyExists'(EC, '...'),
+   'env:getValue'(EC, '...', []).
 evaluate_rhs([EC | ECS], '...', [EC | ECS], VS) :-
    \+'env:keyExists'(EC, '...'),
    evaluate_rhs(ECS, '...', ECS, VS).
@@ -168,290 +224,243 @@ evaluate_rhs(ENV0, unop(type, E), ENV1, [type(Type)]) :-
 
 
 
-
-
-
-
-                                                                                                            /*
 % The unary minus operator.
-evaluate_rhs(ETS, RS, unop(unm, E), ETS1, [numbertype(M)]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [numbertype(N) | _]),
+evaluate_rhs(ENV0, unop(unm, E), ENV1, [numbertype(M)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [numbertype(N) | _]),
    M is -N.
-
-evaluate_rhs(ETS, RS, unop(unm, E), ETS1, error('\'-\' operand is not a number.')) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
-   \+member(V, [numbertype(_)]).
 
 
 
 % The not operator.
-evaluate_rhs(ETS, RS, unop(not, E), ETS1, [booleantype(true)]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+evaluate_rhs(ENV0, unop(not, E), ENV1, [booleantype(true)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
    member(V, [niltype(nil), booleantype(false)]).
-
-evaluate_rhs(ETS, RS, unop(not, E), ETS1, [booleantype(false)]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+evaluate_rhs(ENV0, unop(not, E), ENV1, [booleantype(false)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]).
 
 
 
 % The length operator.
-evaluate_rhs(ETS, RS, unop(len, E), ETS1, [numbertype(Size)]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [referencetype(N) | _]),
-   env_gettable(ETS1, referencetype(N), T),
-   table_size(T, Size).
-
-evaluate_rhs(ETS, RS, unop(len, E), ETS1, [numbertype(Size)]) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [stringtype(S) | _]),
+evaluate_rhs(ENV0, unop(len, E), ENV1, [numbertype(Size)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [table(M) | _]),
+   'map:size'(M, Size).
+evaluate_rhs(ENV0, unop(len, E), ENV1, [numbertype(Size)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [referencetype(table, ECID, K) | _]),
+   'env:getValue'(ENV1, ECID, K, table(M)),
+   'map:size'(M, Size).
+evaluate_rhs(ENV0, unop(len, E), ENV1, [numbertype(Size)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [stringtype(S) | _]),
    atom_length(S, Size).
-
-evaluate_rhs(ETS, RS, unop(len, E), ETS1, error('\'#\' operand is not a table or string.')) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
-   \+member(V, [referencetype(_), stringtype(_)]).
+evaluate_rhs(ENV0, unop(len, E), ENV1, error('\'#\' operand is not a table or string.')) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
+   \+member(V, [table(_), referencetype(table, _, _), stringtype(_)]).
 
 
 
 % Binary operators.
-evaluate_rhs(ETS, RS, binop(_, E1, _), ETS1, error(Message)) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, error(Message)).
-
-evaluate_rhs(ETS, RS, binop(_, E1, E2), ETS2, error(Message)) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, _),
-   evaluate_rhs(ETS1, RS, E2, ETS2, error(Message)).
+evaluate_rhs(ENV0, binop(_, E1, _), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, E1, ENV1, error(Message)).
+evaluate_rhs(ENV0, binop(_, E1, E2), ENV2, error(Message)) :-
+   evaluate_rhs(ENV0, E1, ENV1, _),
+   evaluate_rhs(ENV1, E2, ENV2, error(Message)).
 
 
 
 % The addition operator.
-evaluate_rhs(ETS, RS, binop(add, E1, E2), ETS2, [numbertype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(add, E1, E2), ENV2, [numbertype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    C is A + B.
 
 
 
 % The subtraction operator.
-evaluate_rhs(ETS, RS, binop(sub, E1, E2), ETS2, [numbertype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(sub, E1, E2), ENV2, [numbertype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    C is A - B.
 
 
 
 % The multiplication operator.
-evaluate_rhs(ETS, RS, binop(mul, E1, E2), ETS2, [numbertype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(mul, E1, E2), ENV2, [numbertype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    C is A * B.
 
 
 
 % The division operator.
-evaluate_rhs(ETS, RS, binop(div, E1, E2), ETS2, [numbertype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(div, E1, E2), ENV2, [numbertype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    C is A / B.
 
 
 
 % The modulo operator.
-evaluate_rhs(ETS, RS, binop(mod, E1, E2), ETS2, [numbertype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(mod, E1, E2), ENV2, [numbertype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    C is A mod B.
 
 
 
 % The exponent operator.
-evaluate_rhs(ETS, RS, binop(pow, E1, E2), ETS2, [numbertype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(pow, E1, E2), ENV2, [numbertype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    C is A ** B.
 
 
 
 % The equality operator.
-evaluate_rhs(ETS, RS, binop(eq, E1, E2), ETS2, [booleantype(false)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
    'std:type'(V1, T1),
    'std:type'(V2, T2),
    T1 \= T2.
-
-evaluate_rhs(ETS, RS, binop(eq, E1, E2), ETS2, [booleantype(true)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
-   'std:rawvalue'(V1, RV),
-   'std:rawvalue'(V2, RV).
-
-evaluate_rhs(ETS, RS, binop(eq, E1, E2), ETS2, [booleantype(false)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
-   'std:rawvalue'(V1, RV1),
-   'std:rawvalue'(V2, RV2),
+evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(true)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
+   'std:rawValue'(V1, RV),
+   'std:rawValue'(V2, RV).
+evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
+   'std:rawValue'(V1, RV1),
+   'std:rawValue'(V2, RV2),
    RV1 \= RV2.
 
 
 
 % The less-than operator.
-evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(true)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(true)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    A < B.
-
-evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(false)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(false)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    A >= B.
-
-evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(true)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(true)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
    A @< B.
-
-evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, [booleantype(false)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(false)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
    A @>= B.
-
-evaluate_rhs(ETS, RS, binop(lt, E1, _), ETS1, error('Left operand is not a number or string.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+evaluate_rhs(ENV0, binop(lt, E1, _), ENV1, error('Left operand is not a number or string.')) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    \+member(V, [numbertype(_), stringtype(_)]).
-
-evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, error('Right operand is not a number or string.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, error('Right operand is not a number or string.')) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    member(V1, [numbertype(_), stringtype(_)]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
    \+member(V2, [numbertype(_), stringtype(_)]).
-
-evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, error('Right operand is not a number.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(_) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
-   V \= numbertype(_).
-
-evaluate_rhs(ETS, RS, binop(lt, E1, E2), ETS2, error('Right operand is not a string.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(_) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
-   V \= stringtype(_).
 
 
 
 % The less-than-or-equal operator.
-evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(true)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(true)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    A =< B.
-
-evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(false)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(false)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    A > B.
-
-evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(true)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(true)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
    A @=< B.
-
-evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, [booleantype(false)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(false)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
    A @> B.
-
-evaluate_rhs(ETS, RS, binop(le, E1, _), ETS1, error('Left operand is not a number or string.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+evaluate_rhs(ENV0, binop(lt, E1, _), ENV1, error('Left operand is not a number or string.')) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    \+member(V, [numbertype(_), stringtype(_)]).
-
-evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, error('Right operand is not a number or string.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, error('Right operand is not a number or string.')) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    member(V1, [numbertype(_), stringtype(_)]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
    \+member(V2, [numbertype(_), stringtype(_)]).
-
-evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, error('Right operand is not a number.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(_) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
-   V \= numbertype(_).
-
-evaluate_rhs(ETS, RS, binop(le, E1, E2), ETS2, error('Right operand is not a string.')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(_) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V | _]),
-   V \= stringtype(_).
 
 
 
 % The greater-than operator.
-evaluate_rhs(ETS, RS, binop(gt, E1, E2), ETS1, VS) :-
-   evaluate_rhs(ETS, RS, binop(lt, E2, E1), ETS1, VS).
+evaluate_rhs(ENV0, binop(gt, E1, E2), ENV1, VS) :-
+   evaluate_rhs(ENV0, binop(lt, E2, E1), ENV1, VS).
 
 
 
 % The greater-than-or-equal operator.
-evaluate_rhs(ETS, RS, binop(ge, E1, E2), ETS1, VS) :-
-   evaluate_rhs(ETS, RS, binop(le, E2, E1), ETS1, VS).
+evaluate_rhs(ENV0, binop(ge, E1, E2), ENV1, VS) :-
+   evaluate_rhs(ENV0, binop(le, E2, E1), ENV1, VS).
 
 
 
 % The and operator.
-evaluate_rhs(ETS, RS, binop(and, E1, _), ETS1, [V]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+evaluate_rhs(ENV0, binop(and, E1, _), ENV1, [V]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    member(V, [niltype(nil), booleantype(false)]).
-
-evaluate_rhs(ETS, RS, binop(and, E1, E2), ETS2, VS) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+evaluate_rhs(ENV0, binop(and, E1, E2), ENV2, VS) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, VS).
+   evaluate_rhs(ENV1, E2, ENV2, VS).
 
 
 
 % The or operator.
-evaluate_rhs(ETS, RS, binop(or, E1, _), ETS1, [V]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+evaluate_rhs(ENV0, binop(or, E1, _), ENV1, [V]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]).
-
-evaluate_rhs(ETS, RS, binop(or, E1, E2), ETS2, VS) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+evaluate_rhs(ENV0, binop(or, E1, E2), ENV2, VS) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    member(V, [niltype(nil), booleantype(false)]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, VS).
+   evaluate_rhs(ENV1, E2, ENV2, VS).
 
 
 
 % The concatenation operator.
-evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, [stringtype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [stringtype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [stringtype(B) | _]),
+evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, [stringtype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
    atom_concat(A, B, C).
-
-evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, [numbertype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [numbertype(A) | _]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [numbertype(B) | _]),
+evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, [numbertype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    atom_length(B, Length),
    C is ((A * (10 ** Length)) + B).
-
-evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, [stringtype(C)]) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, [stringtype(C)]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    member(V1, [numbertype(_), stringtype(_)]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
    member(V2, [numbertype(_), stringtype(_)]),
    'std:type'(V1, T1),
    'std:type'(V2, T2),
    T1 \= T2,
-   'std:rawvalue'(V1, A),
-   'std:rawvalue'(V2, B),
+   'std:rawValue'(V1, A),
+   'std:rawValue'(V2, B),
    atom_concat(A, B, C).
-
-evaluate_rhs(ETS, RS, binop(concat, E1, _), ETS1, error('Left operand is not a number or string')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V | _]),
+evaluate_rhs(ENV0, binop(concat, E1, _), ENV1, error('Left operand is not a number or string')) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    \+member(V, [numbertype(_), stringtype(_)]).
-
-evaluate_rhs(ETS, RS, binop(concat, E1, E2), ETS2, error('Right operand is not a number or string')) :-
-   evaluate_rhs(ETS, RS, E1, ETS1, [V1 | _]),
+evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, error('Right operand is not a number or string')) :-
+   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    member(V1, [numbertype(_), stringtype(_)]),
-   evaluate_rhs(ETS1, RS, E2, ETS2, [V2 | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
    \+member(V2, [numbertype(_), stringtype(_)]).
-                                                                                                            */
+
 
 
 % Evaluate a function definition.
-evaluate_rhs(ENV0, functiondef(PS, SS), ENV0, [function(PS, SS, [])]).
+evaluate_rhs([EC | ECS], functiondef(PS, SS), [EC1 | ECS], [Reference]) :-
+   'env:addObject'(EC, function(PS, SS, []), EC1, Reference).
 
 
 
@@ -498,117 +507,102 @@ evaluate_stat(ENV0, statementlist([S | _]), ENV1, break, []) :-
 evaluate_stat(ENV0, statementlist([S | _]), ENV1, error, Error) :-
    evaluate_stat(ENV0, S, ENV1, error, Error).
 evaluate_stat(ENV0, statementlist([S | SS]), ENV2, CTRL, VS) :-
-   evaluate_stat(ENV0, S, ENV1, continue, _),
+   evaluate_stat(ENV0, S, ENV1, continue, _), !,
    evaluate_stat(ENV1, statementlist(SS), ENV2, CTRL, VS).
 
 
 
-
-                                                                                                      /*
-
-
 % The assignment statement.
-evaluate_stat(ETS, RS, assign(LHS, _), ETS1, error, error(Message)) :-
-   evaluate_lhs(ETS, RS, explist(LHS), ETS1, error(Message)).
-
-evaluate_stat(ETS, RS, assign(LHS, RHS), ETS2, error, error(Message)) :-
-   evaluate_lhs(ETS, RS, explist(LHS), ETS1, _),
-   evaluate_rhs(ETS1, RS, explist(RHS), ETS2, error(Message)).
-
-evaluate_stat(ETS, RS, assign(LHS, RHS), ETS3, continue, []) :-
-   evaluate_lhs(ETS, RS, explist(LHS), ETS1, VS_lhs),
-   evaluate_rhs(ETS1, RS, explist(RHS), ETS2, VS_rhs),
-   env_setvalues(ETS2, VS_lhs, VS_rhs, ETS3).
+evaluate_stat(ENV0, assign(LHS, RHS), ENV3, continue, []) :-
+   evaluate_lhs(ENV0, explist(LHS), ENV1, VS_lhs),
+   VS_lhs \== error(_),
+   evaluate_rhs(ENV1, explist(RHS), ENV2, VS_rhs),
+   VS_rhs \== error(_),
+   'env:setValues'(ENV2, VS_lhs, VS_rhs, ENV3).
+evaluate_stat(ENV0, assign(LHS, _), ENV1, error, error(Message)) :-
+   evaluate_lhs(ENV0, explist(LHS), ENV1, error(Message)).
+evaluate_stat(ENV0, assign(LHS, RHS), ENV2, error, error(Message)) :-
+   evaluate_lhs(ENV0, explist(LHS), ENV1, _),
+   evaluate_rhs(ENV1, explist(RHS), ENV2, error(Message)).
 
 
 
 % The function statement.
-evaluate_stat(ETS, RS, functioncall(E, ES), ETS1, error, error(Message)) :-
-   evaluate_rhs(ETS, RS, functioncall(E, ES), ETS1, error(Message)).
-
-evaluate_stat(ETS, RS, functioncall(E, ES), ETS1, continue, []) :-
-   evaluate_rhs(ETS, RS, functioncall(E, ES), ETS1, _).
+evaluate_stat(ENV0, functioncall(E, ES), ENV1, continue, []) :-
+   evaluate_rhs(ENV0, functioncall(E, ES), ENV1, VS),
+   VS \== error(_).
+evaluate_stat(ENV0, functioncall(E, ES), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, functioncall(E, ES), ENV1, error(Message)).
 
 
 
 % The do statement.
-evaluate_stat(ETS, RS, do(SS), ETS2, C, VS) :-
-   env_make(ETS, RS, ETS1, RS1),
-   evaluate_stat(ETS1, RS1, statementlist(SS), ETS2, C, VS).
+evaluate_stat(ENV0, do(SS), ENV2, CTRL, VS) :-
+   'env:addContext'(ENV0, ENV1),
+   evaluate_stat(ENV1, statementlist(SS), [_ | ENV2], CTRL, VS).
 
 
 
 % The while-do statement.
-evaluate_stat(ETS, RS, while(E, _), ETS1, error, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, error(Message)).
-
-evaluate_stat(ETS, RS, while(E, _), ETS1, continue, []) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+evaluate_stat(ENV0, while(E, _), ENV1, continue, []) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
    member(V, [niltype(nil), booleantype(false)]).
-
-evaluate_stat(ETS, RS, while(E, SS), ETS3, C, VS_ss) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+evaluate_stat(ENV0, while(E, SS), ENV2, continue, []) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ETS1, RS, do(SS), ETS2, continue, _),
-   evaluate_stat(ETS2, RS, while(E, SS), ETS3, C, VS_ss).
-
-evaluate_stat(ETS, RS, while(E, SS), ETS2, C, VS_ss) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+   evaluate_stat(ENV1, do(SS), ENV2, break, _).
+evaluate_stat(ENV0, while(E, SS), ENV3, CTRL, VS_ss) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]), !,
    \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ETS1, RS, do(SS), ETS2, C, VS_ss),
-   member(C, [return, error]).
-
-evaluate_stat(ETS, RS, while(E, SS), ETS2, continue, []) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+   evaluate_stat(ENV1, do(SS), ENV2, continue, _), !,
+   evaluate_stat(ENV2, while(E, SS), ENV3, CTRL, VS_ss).
+evaluate_stat(ENV0, while(E, SS), ENV2, CTRL, VS_ss) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ETS1, RS, do(SS), ETS2, break, _).
+   evaluate_stat(ENV1, do(SS), ENV2, CTRL, VS_ss),
+   member(CTRL, [return, error]).
+evaluate_stat(ENV0, while(E, _), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
 
 
 
 % The repeat-until statement.
-evaluate_stat(ETS, RS, repeat(_, SS), ETS2, C, VS) :-
-   env_make(ETS, RS, ETS1, RS1),
-   evaluate_stat(ETS1, RS1, statementlist(SS), ETS2, C, VS),
-   member(C, [return, error]).
-
-evaluate_stat(ETS, RS, repeat(_, SS), ETS2, continue, []) :-
-   env_make(ETS, RS, ETS1, RS1),
-   evaluate_stat(ETS1, RS1, statementlist(SS), ETS2, break, []).
-
-evaluate_stat(ETS, RS, repeat(E, SS), ETS3, error, error(Message)) :-
-   env_make(ETS, RS, ETS1, RS1),
-   evaluate_stat(ETS1, RS1, statementlist(SS), ETS2, continue, _),
-   evaluate_rhs(ETS2, RS1, E, ETS3, error(Message)).
-
-evaluate_stat(ETS, RS, repeat(E, SS), ETS3, continue, []) :-
-   env_make(ETS, RS, ETS1, RS1),
-   evaluate_stat(ETS1, RS1, statementlist(SS), ETS2, continue, _),
-   evaluate_rhs(ETS2, RS1, E, ETS3, [V | _]),
+evaluate_stat(ENV0, repeat(_, SS), ENV2, CTRL, VS) :-
+   'env:addContext'(ENV0, ENV1),
+   evaluate_stat(ENV1, statementlist(SS), [_ | ENV2], CTRL, VS),
+   member(CTRL, [return, error]).
+evaluate_stat(ENV0, repeat(_, SS), ENV2, continue, []) :-
+   'env:addContext'(ENV0, ENV1),
+   evaluate_stat(ENV1, statementlist(SS), [_ | ENV2], break, []).
+evaluate_stat(ENV0, repeat(E, SS), ENV3, error, error(Message)) :-
+   'env:addContext'(ENV0, ENV1),
+   evaluate_stat(ENV1, statementlist(SS), ENV2, continue, _),
+   evaluate_rhs(ENV2, E, [_ | ENV3], error(Message)).
+evaluate_stat(ENV0, repeat(E, SS), ENV3, continue, []) :-
+   'env:addContext'(ENV0, ENV1),
+   evaluate_stat(ENV1, statementlist(SS), ENV2, continue, _),
+   evaluate_rhs(ENV2, E, [_ | ENV3], [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]).
-
-evaluate_stat(ETS, RS, repeat(E, SS), ETS4, C, VS) :-
-   env_make(ETS, RS, ETS1, RS1),
-   evaluate_stat(ETS1, RS1, statementlist(SS), ETS2, continue, _),
-   evaluate_rhs(ETS2, RS1, E, ETS3, [V | _]),
+evaluate_stat(ENV0, repeat(E, SS), ENV4, CTRL, VS) :-
+   'env:addContext'(ENV0, ENV1),
+   evaluate_stat(ENV1, statementlist(SS), ENV2, continue, _),
+   evaluate_rhs(ENV2, E, [_ | ENV3], [V | _]), !,
    member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ETS3, RS, repeat(E, SS), ETS4, C, VS).
+   evaluate_stat(ENV3, repeat(E, SS), ENV4, CTRL, VS).
 
 
 
 % If statement.
-evaluate_stat(ETS, RS, if(E, _, _), ETS1, error, error(Message)) :-
-   evaluate_rhs(ETS, RS, E, ETS1, error(Message)).
-
-evaluate_stat(ETS, RS, if(E, _, S), ETS2, C, VS) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
+evaluate_stat(ENV0, if(E, _, _), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_stat(ENV0, if(E, _, S), ENV2, CTRL, VS) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
    member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ETS1, RS, S, ETS2, C, VS).
-
-evaluate_stat(ETS, RS, if(E, S, _), ETS2, C, VS) :-
-   evaluate_rhs(ETS, RS, E, ETS1, [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ETS1, RS, S, ETS2, C, VS).
-                                                                                                      */
+   evaluate_stat(ENV1, S, ENV2, CTRL, VS).
+evaluate_stat(ENV0, if(E, S, _), ENV2, CTRL, VS) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
+   \+member(V, [niltype(nil), booleantype(false)]), !,
+   evaluate_stat(ENV1, S, ENV2, CTRL, VS).
 
 
 
@@ -637,7 +631,7 @@ evaluate_stat(ENV0, break, ENV0, break, []).
 % Evaluate a chunk.
 'evaluate:chunk'([], _, [], []).
 'evaluate:chunk'(Statements, Arguments, Environment, Result) :-
-	'env:addContext'([], ['...'], Arguments, [context(0, M)]),
-	'env:mapping0'(M0),
-	append(M, M0, M1),
-	evaluate_stat([context(0, M1)], statementlist(Statements), Environment, _, Result).
+   'env:addContext'([], ['...'], Arguments, [context(ECID, M)]),
+   'env:0'(ECID, M0),
+   append(M, M0, M1),
+   evaluate_stat([context(0, M1)], statementlist(Statements), Environment, _, Result).

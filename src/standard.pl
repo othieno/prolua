@@ -45,8 +45,7 @@
 'std:rawValue'(booleantype(B), B).
 'std:rawValue'(numbertype(N), N).
 'std:rawValue'(stringtype(S), S).
-'std:rawValue'(referencetype(_, _, R), R).
-'std:rawValue'(functiontype(PS, SS, RS), functiontype(PS, SS, RS)).
+'std:rawValue'(referencetype(_, ECID, K), [ECID, K]).
 
 
 
@@ -60,6 +59,7 @@
    K \== K1,
    'map:getValue'(M, K1, V).
 
+
 % Set a value in the map.
 'map:setValue'([], K, V, [[K, V]]).
 'map:setValue'([[K, _] | M], K, V, [[K, V] | M]).
@@ -67,10 +67,10 @@
    K \== K1,
    'map:setValue'(M, K1, V1, M1).
 
+
 % Create a map from a list of keys and values. Be wary of varargs.
 'map:build'([], _, []).
 'map:build'(['...' | _], VS, [['...', VS]]).
-'map:build'(['...' | _], [], [['...', [niltype(nil)]]]).
 'map:build'([K | KS], [V | VS], M1) :-
    K \== '...',
    'map:build'(KS, VS, M),
@@ -80,6 +80,7 @@
    'map:build'(KS, [], M),
    append([[K, niltype(nil)]], M, M1).
 
+
 % Does a given key exist in the map?
 'map:keyExists'([], _) :- false.
 'map:keyExists'([[K, _] | _], K).
@@ -87,31 +88,38 @@
    K \== K1,
    'map:keyExists'(M, K1).
 
+
 % Return the number of elements in the map.
 'map:size'([], 0).
 'map:size'([[_, _] | M], Size) :-
    'map:size'(M, SubmapSize),
    Size is SubmapSize + 1.
 
+
 % Print a map.
 'map:print'([], _).
 'map:print'([[K, V] | M], Indentation) :-
-   'std:whitespace'(Indentation, Whitespace),                                                         % TODO Use an asserta/1 here.
-   write(Whitespace), write(K), write(': '), println(V),
+   'print:indentation'(Indentation, Whitespace),                                                         % TODO Use an asserta/1 here.
+   write(Whitespace), write(K), write(': '), writeln(V),
    'map:print'(M, Indentation).
-
-
-
-% isObject/2 returns true if the predicate is a Lua object, false otherwise.
-% ------------------------------------------------------------------------------
-'std:isObject'(table(_), table).
-'std:isObject'(function(_, _, _), function).
 
 
 
 % Environment manipulation.
 % ------------------------------------------------------------------------------
 
+% The initial environment mapping.
+'env:0'(ECID,
+   [
+      [1, function(['value'], [return([unop(type, variable('value'))])], [])],
+      ['type', referencetype(function, ECID, 1)],
+      [3, function(['output'], [], [])],
+      ['print', referencetype(function, ECID, 3)]
+   ]
+).
+
+
+% Check if a key exists in a given context.
 'env:keyExists'(context(_, M), K) :-
    'map:keyExists'(M, K).
 'env:keyExists'(ENV, ECID, _) :-
@@ -121,13 +129,19 @@
    'env:getContext'(ENV, ECID, context(_, M)),
    'map:keyExists'(M, K).
 
+
+% Return an execution context's identifier.
 'env:getIdentifier'(context(ECID, _), ECID).
 
+
+% Return the size of an execution environment.
 'env:size'([], 0).
 'env:size'([_ | ECS], Size) :-
    'env:size'(ECS, Subsize),
    Size is Subsize + 1.
 
+
+% Return a context based on a context identifier.
 'env:getContext'([], ECID, error(Message)) :-
    atom_concat('Could not find execution context #', ECID, Message).
 'env:getContext'([context(ECID, M) | _], ECID, context(ECID, M)).
@@ -135,31 +149,32 @@
    ECID \== ECID1,
    'env:getContext'(ECS, ECID1, EC).
 
+% Add an object to the execution context.
+'env:addObject'(context(ECID, M), table(T), context(ECID, M1), Reference) :-
+   'map:size'(M, ObjectKey),
+   'map:setValue'(M, ObjectKey, table(T), M1),
+   Reference = referencetype(table, ECID, ObjectKey).
+'env:addObject'(context(ECID, M), function(PS, SS, ENVf), context(ECID, M1), Reference) :-
+   'map:size'(M, ObjectKey),
+   'map:setValue'(M, ObjectKey, function(PS, SS, ENVf), M1),
+   Reference = referencetype(function, ECID, ObjectKey).
+
+
+% Return a value based on a context and key.
 'env:getValue'(context(_, Map), Key, Value) :-
    'map:getValue'(Map, Key, Value).
 'env:getValue'(ENV, ECID, Key, Value) :-
    'env:getContext'(ENV, ECID, context(_, Map)),
    'map:getValue'(Map, Key, Value).
 
-'env:setValue'(context(ECID, M), K, V, context(ECID, M1)) :-
-   \+'std:isObject'(V, _),
-   'map:setValue'(M, K, V, M1).
-'env:setValue'(context(ECID, M), K, V, context(ECID, M2)) :-
-   'std:isObject'(V, ObjectType),
-   'map:size'(M, ObjectKey),
-   'map:setValue'(M, ObjectKey, V, M1),
-   'map:setValue'(M1, K, referencetype(ObjectType, ECID, ObjectKey), M2).
 
+% Set a value in a given context, based on a key.
+'env:setValue'(context(ECID, M), K, V, context(ECID, M1)) :-
+   'map:setValue'(M, K, V, M1).
 'env:setValue'([], ECID, _, _, error(Message)) :-
    atom_concat('Could not find execution context #', ECID, Message).
 'env:setValue'([context(ECID, M) | ECS], ECID, K, V, [context(ECID, M1) | ECS]) :-
-   \+'std:isObject'(V, _),
    'map:setValue'(M, K, V, M1).
-'env:setValue'([context(ECID, M) | ECS], ECID, K, V, [context(ECID, M2) | ECS]) :-
-   'std:isObject'(V, ObjectType),
-   'map:size'(M, ObjectKey),
-   'map:setValue'(M, ObjectKey, V, M1),
-   'map:setValue'(M1, K, referencetype(ObjectType, ECID, ObjectKey), M2).
 'env:setValue'([context(ECID, _) | ECS], ECID1, K, V, error(Message)) :-
    ECID \== ECID1,
    'env:setValue'(ECS, ECID1, K, V, error(Message)).
@@ -168,6 +183,30 @@
    'env:setValue'(ECS, ECID1, K, V, ECS1),
    append([context(ECID, M)], ECS1, ECS2).
 
+
+% Set multiple values.
+'env:setValues'(ENV0, [], _, ENV0).
+'env:setValues'(ENV0, [[ECID, K] | AS], [], ENV2) :-
+   'env:setValue'(ENV0, ECID, K, niltype(nil), ENV1),
+   'env:setValues'(ENV1, AS, [], ENV2).
+'env:setValues'(ENV0, [[ECID, K] | AS], [V | VS], ENV2) :-
+   V \= referencetype(_, _, _),
+   'env:setValue'(ENV0, ECID, K, V, ENV1), !,
+   'env:setValues'(ENV1, AS, VS, ENV2).
+'env:setValues'(ENV0, [[ECID, K] | AS], [referencetype(Type, ECID, K1) | VS], ENV2) :-
+   'env:setValue'(ENV0, ECID, K, referencetype(Type, ECID, K1), ENV1), !,
+   'env:setValues'(ENV1, AS, VS, ENV2).
+'env:setValues'(ENV0, [[ECID, K] | AS], [referencetype(Type, ECID1, K1) | VS], ENV3) :-
+   ECID \== ECID1,
+   'env:getValue'(ENV0, ECID1, K1, V),
+   'env:getContext'(ENV0, ECID, context(_, M)),
+   'map:size'(M, ObjectKey),
+   'env:setValue'(ENV0, ECID, ObjectKey, V, ENV1),
+   'env:setValue'(ENV1, ECID, K, referencetype(Type, ECID, ObjectKey), ENV2), !,
+   'env:setValues'(ENV2, AS, VS, ENV3).
+
+
+% Create a new context.
 'env:addContext'([], [context(0, [])]).
 'env:addContext'([context(ECID, M) | ECS], ENV) :-
    ECID1 is ECID + 1,
@@ -177,6 +216,7 @@
    'map:build'(KS, VS, M).
 
 
+% Remove a context.
 'env:removeContext'([], _, []).
 'env:removeContext'([context(ECID, _) | ECS], ECID, ECS).
 'env:removeContext'([context(ECID, M) | ECS], ECID1, ECS2) :-
@@ -185,218 +225,85 @@
    append([context(ECID, M)], ECS1, ECS2).
 
 
-% The initial environment.
-'env:initialise'(
-   Statements,
-   [
-      context(0,
-      [
-         [0, function(['...'], Statements, [])],
-         ['$prolua:main', referencetype(function, 0, 0)],
-         [2, function(['value'], [return([unop(type, variable('value'))])], [])],
-         ['type', referencetype(function, 0, 2)],
-         [4, function(['output'], [], [])],
-         ['print', referencetype(function, 0, 4)]
-      ])
-   ]
-).
-
-
-
-debug :-
-   'env:initialise'([ok, ok1, ok2], ENV0),
-
-   evaluate_rhs(ENV0, functioncall(variable('$prolua:main'), []), ENV1, R),
-%   evaluate_rhs(ENV0, explist([numbertype(23), referencetype(function, 0), explist([booleantype(false), niltype(nil)])]), ENV1, R),
-   'std:printfe'(ENV1),
-   println(R).
-   %'env:setvalue'(ENV0, 1, ce, function([], [], []), ENV1),
-%   'std:printfe'(ENV1).
-
-
-
-
-
-
-
-
-
-
-% Environment manipulation.
-% ------------------------------------------------------------------------------
-
-% Add a new empty table to the environment.
-env_make(ETS, RS, ETS1, RS1) :-
-   append(ETS, [table([])], ETS1),
-   list_size(ETS1, Size),
-   append([referencetype(Size)], RS, RS1).
-
-% Add a table with the given fields to the environment.
-env_make(ETS, RS, Fields, ETS1, RS1) :-
-   append(ETS, [table(Fields)], ETS1),
-   list_size(ETS1, Size),
-   append([referencetype(Size)], RS, RS1).
-
-% Add a table with the key-value pairs to the environment.
-env_make(ETS, RS, ['...' | _], [], ETS1, RS1) :-
-   append(ETS, [table([['...', [niltype(nil)]]])], ETS1),
-   list_size(ETS1, Size),
-   append([referencetype(Size)], RS, RS1).
-
-% Be wary of variadic expressions.
-env_make(ETS, RS, ['...' | _], Values, ETS1, RS1) :-
-   append(ETS, [table([['...', Values]])], ETS1),
-   list_size(ETS1, Size),
-   append([referencetype(Size)], RS, RS1).
-
-env_make(ETS, RS, Keys, Values, ETS1, RS1) :-
-   table_create(Keys, Values, Table),
-   append(ETS, [Table], ETS1),
-   list_size(ETS1, Size),
-   append([referencetype(Size)], RS, RS1).
-
-
-
-% Return a table from the environment based on it reference.
-env_gettable([ET | _], referencetype(1), ET).
-env_gettable([_ | ETS], referencetype(N), ET) :-
-   referencetype(N),
-   M is N - 1,
-   env_gettable(ETS, referencetype(M), ET).
-
-
-
-% Return true if a given field key exists in a referenced table, false otherwise.
-env_keyexists(ETS, Reference, Key, Exists) :-
-   env_gettable(ETS, Reference, ET),
-   table_keyexists(ET, Key, Exists).
-
-
-
-% Return a field value from a given table and key.
-env_getvalue(ETS, Reference, Key, Value) :-
-   env_gettable(ETS, Reference, ET),
-   table_get(ET, Key, Value).
-
-
-
-% Set a field value in a referenced table based on its key.
-env_setvalue([ET | ETS], referencetype(1), K, V, [ET1 | ETS]) :-
-   table_set(ET, K, V, ET1).
-env_setvalue([ET | ETS], referencetype(N), K, V, [ET | ETS1]) :-
-   referencetype(N),
-   M is N - 1,
-   env_setvalue(ETS, referencetype(M), K, V, ETS1).
-
-
-% Set a field value in the current environment.
-env_setvalues(ETS, [], _, ETS).
-
-env_setvalues(ETS, [[R, K] | RKS], [], ETS2) :-
-   env_setvalue(ETS, R, K, niltype(nil), ETS1),
-   env_setvalues(ETS1, RKS, [], ETS2).
-
-env_setvalues(ETS, [[R, K] | RKS], [V | VS], ETS2) :-
-   env_setvalue(ETS, R, K, V, ETS1),
-   env_setvalues(ETS1, RKS, VS, ETS2).
-
-
-
-
-
-% Table manipulation.
-% ------------------------------------------------------------------------------
-
-% Tables (associative arrays).
-table([]).
-table([[Key, Value] | T]) :-
-   expression(Key),
-   Key \= niltype(nil),
-   expression(Value),
-   table(T).
-
-
-
 
 % Feedback predicates.
 % ------------------------------------------------------------------------------
 
 % Print a line.
-println(Line) :- write(Line), nl.
+writeln(Line) :- write(Line), nl.
 
 
 % Format values to ease readability.
-'std:format'(type(T), T).
-'std:format'(niltype(nil), nil).
-'std:format'(numbertype(N), N).
-'std:format'(booleantype(B), B).
-'std:format'(stringtype(S), S2) :-
+'print:format'(type(T), T).
+'print:format'(niltype(nil), nil).
+'print:format'(numbertype(N), N).
+'print:format'(booleantype(B), B).
+'print:format'(stringtype(S), S2) :-
    atom_concat('"',  S, S1),
    atom_concat(S1, '"', S2).
-'std:format'(referencetype(Type, ECID, N), Reference) :-
+'print:format'(referencetype(Type, ECID, N), Reference) :-
    atom_concat(Type, ':', TMP0),
    atom_concat(TMP0, ECID, TMP1),
    atom_concat(TMP1, ':', TMP2),
    atom_concat(TMP2, N, Reference).
-'std:format'([Value], FormattedValue) :-
-   'std:format'(Value, FormattedValue).
-'std:format'([Value | Values], FullyFormattedValues) :-
-   'std:format'(Value, FormattedValue),
-   'std:format'(Values, FormattedValues),
+'print:format'([Value], FormattedValue) :-
+   'print:format'(Value, FormattedValue).
+'print:format'([Value | Values], FullyFormattedValues) :-
+   'print:format'(Value, FormattedValue),
+   'print:format'(Values, FormattedValues),
    atom_concat(FormattedValue, ', ', TMP),
    atom_concat(TMP, FormattedValues, FullyFormattedValues).
-'std:format'(Environment, Environment).                                                               %TODO
 
-% Create whitespace.
-'std:whitespace'(0, '').
-'std:whitespace'(N, Whitespace) :-
-   M is N - 1,
-   'std:whitespace'(M, TMP),
-   atom_concat(' ', TMP, Whitespace).
+
+% Print indentation whitespace.
+'print:indentation'(0, '').
+'print:indentation'(Count, Whitespace) :-
+   M is Count - 1,
+   'print:indentation'(M, TMP),
+   atom_concat('   ', TMP, Whitespace).
 
 
 % Print the call stack (the statements to be executed).
-'std:printfi'([]).
-'std:printfi'(Statements) :-
-   println('Call stack:'),
-   'std:printfi'(Statements, 1).
-
-'std:printfi'([], _).
-'std:printfi'([Statement | Statements], InstructionNumber) :-
+'print:statements'([]).
+'print:statements'(Statements) :-
+   writeln('Call stack:'),
+   'print:statements'(Statements, 1).
+'print:statements'([], _).
+'print:statements'([Statement | Statements], InstructionNumber) :-
    write(InstructionNumber), write(' :: '), write(Statement), nl,
    NextInstructionNumber is InstructionNumber + 1,
-   'std:printfi'(Statements, NextInstructionNumber).
-
+   'print:statements'(Statements, NextInstructionNumber).
 
 
 % Print the result of an execution, formatted for readability.
-'std:printfr'(error(Message)) :-
-   write('% Error! '), println(Message).
-
-'std:printfr'([]) :-
-   println('% No results were returned.').
-
-'std:printfr'(Result) :-
-   'std:format'(Result, FormattedResult),
+'print:result'(error(Message)) :-
+   write('% Error! '), writeln(Message).
+'print:result'([]) :-
+   writeln('% No results were returned.').
+'print:result'(Result) :-
+   'print:format'(Result, FormattedResult),
    atom_concat('% Result: ', FormattedResult, FullyFormattedResult),
-   println(FullyFormattedResult).
+   writeln(FullyFormattedResult).
 
-
-
-% Print the environment, formatted for readability.
-'std:printfe'([EC]) :-
-   'std:printfec'(EC).
-'std:printfe'([EC | ECS]) :-
-   'std:printfec'(EC),
-   'std:printfe'(ECS).
 
 % Print execution contexts.
-'std:printfec'(context(ECID, M)) :-
-   write('Execution context '), write(ECID), println(':'),
-   'map:print'(M, 3).
+'print:context'(context(ECID, M)) :-
+   write('   Execution context '), write(ECID), writeln(':'),
+   'map:print'(M, 2).
+'print:context'([]).
+'print:context'([EC | ECS]) :-
+   'print:context'(EC), !,
+   'print:context'(ECS).
+
+
+% Print the execution environment.
+'print:environment'(Environment) :-
+   writeln('% Execution environment: '),
+   'print:context'(Environment).
+
 
 % Print execution statistics, formatted for readability.
-'std:printfs' :-
+'print:statistics' :-
    statistics(runtime, [CPUTime | _]),
    Runtime is CPUTime/1000,
    write('% Evaluated in '), write(Runtime), write(' seconds.'), nl.
