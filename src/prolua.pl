@@ -34,14 +34,14 @@ main :-
    halt.
 
 % Evaluate a list of statements. Before we can evaluate the statements, we load
-% the syntax, semantics and standard database, then evaluate the Lua program.
-% When evaluation is complete, the execution environment, any results, as well
-% as runtime statistics are printed.
+% the 'syntax', 'semantics' and 'standard' knowledge bases, then evaluate the Lua
+% program. When evaluation is complete, the execution environment, any results,
+% as well as runtime statistics are printed.
 main(Statements, CommandLineArguments) :-
    consult('syntax.pl'),
    consult('semantics.pl'),
    consult('standard.pl'),
    'evaluate:chunk'(Statements, CommandLineArguments, Environment, Result),
-   'print:result'(Result),
    'print:environment'(Environment),
+   'print:result'(Result),
    'print:statistics'.

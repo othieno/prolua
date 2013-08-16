@@ -99,9 +99,18 @@
 % Print a map.
 'map:print'([], _).
 'map:print'([[K, V] | M], Indentation) :-
-   'print:indentation'(Indentation, Whitespace),                                                         % TODO Use an asserta/1 here.
-   write(Whitespace), write(K), write(': '), writeln(V),
+   'print:indentation'(Indentation, Whitespace),
+   ansi_format([bold], '~w~w:~w\n', [Whitespace, K, V]),
    'map:print'(M, Indentation).
+
+
+% Print a map formatted specifically like an execution context.
+'map:contextprint'([], _).
+'map:contextprint'([[K, V] | M], Indentation) :-
+   'print:indentation'(Indentation, Whitespace),
+   ansi_format([bold, fg(yellow)], '~w~w', [Whitespace, K]),
+   ansi_format([], ' ~w\n', [V]),
+   'map:contextprint'(M, Indentation).
 
 
 
@@ -111,10 +120,10 @@
 % The initial environment mapping.
 'env:0'(ECID,
    [
-      [1, function(['value'], [return([unop(type, variable('value'))])], [])],
-      ['type', referencetype(function, ECID, 1)],
-      [3, function(['output'], [], [])],
-      ['print', referencetype(function, ECID, 3)]
+      ['0x1', function(['value'], [return([unop(type, variable('value'))])], [])],
+      ['0x2', function(['output'], [], [])],
+      ['type',  referencetype(function, ECID, '0x1')],
+      ['print', referencetype(function, ECID, '0x2')]
    ]
 ).
 
@@ -124,7 +133,7 @@
    'map:keyExists'(M, K).
 'env:keyExists'(ENV, ECID, _) :-
    'env:getContext'(ENV, ECID, error(_)),
-   false.
+   false, !.
 'env:keyExists'(ENV, ECID, K) :-
    'env:getContext'(ENV, ECID, context(_, M)),
    'map:keyExists'(M, K).
@@ -149,13 +158,16 @@
    ECID \== ECID1,
    'env:getContext'(ECS, ECID1, EC).
 
+
 % Add an object to the execution context.
 'env:addObject'(context(ECID, M), table(T), context(ECID, M1), Reference) :-
-   'map:size'(M, ObjectKey),
+   'map:size'(M, Size),
+   format(atom(ObjectKey), '0x~16R', [Size]),
    'map:setValue'(M, ObjectKey, table(T), M1),
    Reference = referencetype(table, ECID, ObjectKey).
 'env:addObject'(context(ECID, M), function(PS, SS, ENVf), context(ECID, M1), Reference) :-
-   'map:size'(M, ObjectKey),
+   'map:size'(M, Size),
+   format(atom(ObjectKey), '0x~16R', [Size]),
    'map:setValue'(M, ObjectKey, function(PS, SS, ENVf), M1),
    Reference = referencetype(function, ECID, ObjectKey).
 
@@ -172,35 +184,36 @@
 'env:setValue'(context(ECID, M), K, V, context(ECID, M1)) :-
    'map:setValue'(M, K, V, M1).
 'env:setValue'([], ECID, _, _, error(Message)) :-
-   atom_concat('Could not find execution context #', ECID, Message).
+   atom_concat('Could not find execution context #', ECID, Message), !.
 'env:setValue'([context(ECID, M) | ECS], ECID, K, V, [context(ECID, M1) | ECS]) :-
-   'map:setValue'(M, K, V, M1).
-'env:setValue'([context(ECID, _) | ECS], ECID1, K, V, error(Message)) :-
-   ECID \== ECID1,
-   'env:setValue'(ECS, ECID1, K, V, error(Message)).
+   'map:setValue'(M, K, V, M1), !.
 'env:setValue'([context(ECID, M) | ECS], ECID1, K, V, ECS2) :-
    ECID \== ECID1,
    'env:setValue'(ECS, ECID1, K, V, ECS1),
-   append([context(ECID, M)], ECS1, ECS2).
+   append([context(ECID, M)], ECS1, ECS2), !.
+'env:setValue'([context(ECID, _) | ECS], ECID1, K, V, error(Message)) :-
+   ECID \== ECID1,
+   'env:setValue'(ECS, ECID1, K, V, error(Message)).
 
 
 % Set multiple values.
 'env:setValues'(ENV0, [], _, ENV0).
 'env:setValues'(ENV0, [[ECID, K] | AS], [], ENV2) :-
    'env:setValue'(ENV0, ECID, K, niltype(nil), ENV1),
-   'env:setValues'(ENV1, AS, [], ENV2).
+   'env:setValues'(ENV1, AS, [], ENV2), !.
 'env:setValues'(ENV0, [[ECID, K] | AS], [V | VS], ENV2) :-
    V \= referencetype(_, _, _),
    'env:setValue'(ENV0, ECID, K, V, ENV1), !,
-   'env:setValues'(ENV1, AS, VS, ENV2).
+   'env:setValues'(ENV1, AS, VS, ENV2), !.
 'env:setValues'(ENV0, [[ECID, K] | AS], [referencetype(Type, ECID, K1) | VS], ENV2) :-
    'env:setValue'(ENV0, ECID, K, referencetype(Type, ECID, K1), ENV1), !,
-   'env:setValues'(ENV1, AS, VS, ENV2).
+   'env:setValues'(ENV1, AS, VS, ENV2), !.
 'env:setValues'(ENV0, [[ECID, K] | AS], [referencetype(Type, ECID1, K1) | VS], ENV3) :-
    ECID \== ECID1,
    'env:getValue'(ENV0, ECID1, K1, V),
    'env:getContext'(ENV0, ECID, context(_, M)),
-   'map:size'(M, ObjectKey),
+   'map:size'(M, Size),
+   format(atom(ObjectKey), '0x~16R', [Size]),
    'env:setValue'(ENV0, ECID, ObjectKey, V, ENV1),
    'env:setValue'(ENV1, ECID, K, referencetype(Type, ECID, ObjectKey), ENV2), !,
    'env:setValues'(ENV2, AS, VS, ENV3).
@@ -238,14 +251,10 @@ writeln(Line) :- write(Line), nl.
 'print:format'(niltype(nil), nil).
 'print:format'(numbertype(N), N).
 'print:format'(booleantype(B), B).
-'print:format'(stringtype(S), S2) :-
-   atom_concat('"',  S, S1),
-   atom_concat(S1, '"', S2).
+'print:format'(stringtype(S), Output) :-
+   format(atom(Output), '"~w"', S).
 'print:format'(referencetype(Type, ECID, N), Reference) :-
-   atom_concat(Type, ':', TMP0),
-   atom_concat(TMP0, ECID, TMP1),
-   atom_concat(TMP1, ':', TMP2),
-   atom_concat(TMP2, N, Reference).
+   format(atom(Reference), '~w:~w:~w', [Type, ECID, N]).
 'print:format'([Value], FormattedValue) :-
    'print:format'(Value, FormattedValue).
 'print:format'([Value | Values], FullyFormattedValues) :-
@@ -277,19 +286,19 @@ writeln(Line) :- write(Line), nl.
 
 % Print the result of an execution, formatted for readability.
 'print:result'(error(Message)) :-
-   write('% Error! '), writeln(Message).
+   ansi_format([bold, fg(red)], '% Error! ~w\n', [Message]).
 'print:result'([]) :-
-   writeln('% No results were returned.').
+   ansi_format([bold, fg(green)], '% No results were returned.\n', []).
 'print:result'(Result) :-
    'print:format'(Result, FormattedResult),
-   atom_concat('% Result: ', FormattedResult, FullyFormattedResult),
-   writeln(FullyFormattedResult).
+   ansi_format([bold, fg(green)], '% ~w\n', [FormattedResult]).
 
 
 % Print execution contexts.
 'print:context'(context(ECID, M)) :-
-   write('   Execution context '), write(ECID), writeln(':'),
-   'map:print'(M, 2).
+   ansi_format([bold, negative, fg(magenta)], '% Execution Context ~w \n', [ECID]),
+   'map:contextprint'(M, 2),
+   ansi_format([bold, fg(magenta), crossed_out], '                      \n', []).
 'print:context'([]).
 'print:context'([EC | ECS]) :-
    'print:context'(EC), !,
@@ -297,13 +306,14 @@ writeln(Line) :- write(Line), nl.
 
 
 % Print the execution environment.
-'print:environment'(Environment) :-
-   writeln('% Execution environment: '),
-   'print:context'(Environment).
+'print:environment'([]) :-
+   ansi_format([bold, fg(magenta)], '% Empty execution environment.\n', []).
+'print:environment'([EC | ECS]) :-
+   'print:context'([EC | ECS]).
 
 
 % Print execution statistics, formatted for readability.
 'print:statistics' :-
    statistics(runtime, [CPUTime | _]),
-   Runtime is CPUTime/1000,
-   write('% Evaluated in '), write(Runtime), write(' seconds.'), nl.
+   Runtime is CPUTime / 1000,
+   ansi_format([bold], '% Evaluated in ~2f seconds.\n', [Runtime]).
