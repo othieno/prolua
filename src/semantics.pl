@@ -163,11 +163,11 @@ evaluate_rhs(ENV0, tableconstructor([_ | _]), [EC1 | ECS], [Reference]) :-
 
 % Enclosed expressions.
 evaluate_rhs(ENV0, enclosed(E), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+   evaluate_rhs(ENV0, E, ENV1, error(Message)), !.
 evaluate_rhs(ENV0, enclosed(E), ENV1, []) :-
-   evaluate_rhs(ENV0, E, ENV1, []).
+   evaluate_rhs(ENV0, E, ENV1, []), !.
 evaluate_rhs(ENV0, enclosed(E), ENV1, [V]) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]).
+   evaluate_rhs(ENV0, E, ENV1, [V | _]), !.
 
 
 
@@ -474,15 +474,15 @@ evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
    evaluate_rhs(ENV0, E, ENV1, [referencetype(function, ECID, Address) | _]),
    evaluate_rhs(ENV1, explist(ES), ENV2, VS_es),
    'env:getValue'(ENV2, ECID, Address, function(PS, SS, [])),
-   'env:addContext'(ENV2, PS, VS_es, ENV3),
-   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss).
+   'env:addContext'(ENV2, PS, VS_es, ENV3), !,
+   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss), !.
 evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
    evaluate_rhs(ENV0, E, ENV1, [referencetype(function, ECID, Address) | _]),
    evaluate_rhs(ENV1, explist(ES), ENV2, VS_es),
    'env:getValue'(ENV2, ECID, Address, function(PS, SS, ENVf)),
    ENVf \== [],
-   'env:addContext'(ENVf, PS, VS_es, ENV3),
-   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss).
+   'env:addContext'(ENVf, PS, VS_es, ENV3), !,
+   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss), !.
 
 
 evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Metatables not implemented yet!')) :-             % TODO
@@ -593,16 +593,16 @@ evaluate_stat(ENV0, repeat(E, SS), ENV4, CTRL, VS) :-
 
 
 % If statement.
-evaluate_stat(ENV0, if(E, _, _), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
 evaluate_stat(ENV0, if(E, _, S), ENV2, CTRL, VS) :-
    evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   member(V, [niltype(nil), booleantype(false)]),
+   member(V, [niltype(nil), booleantype(false)]), !,
    evaluate_stat(ENV1, S, ENV2, CTRL, VS).
 evaluate_stat(ENV0, if(E, S, _), ENV2, CTRL, VS) :-
    evaluate_rhs(ENV0, E, ENV1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]), !,
    evaluate_stat(ENV1, S, ENV2, CTRL, VS).
+evaluate_stat(ENV0, if(E, _, _), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
 
 
 
