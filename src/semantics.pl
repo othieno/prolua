@@ -70,12 +70,18 @@ evaluate_lhs(ETS, RS, access(R, K), ETS2, [V_r, V_k]) :-
                                                                                                       */
 
 
+
 % Evaluate a list of right-hand side (RHS) expressions.
 evaluate_rhs(ENV0, explist([]), ENV0, []).
 evaluate_rhs(ENV0, explist([E]), ENV1, VS) :-
+   E \== '...',
    evaluate_rhs(ENV0, E, ENV1, VS), !.
+evaluate_rhs(ENV0, explist(['...']), ENV1, []) :-
+   evaluate_rhs(ENV0, '...', ENV1, [niltype(nil)]), !.
+evaluate_rhs(ENV0, explist(['...']), ENV1, [EC | ECS]) :-
+   evaluate_rhs(ENV0, '...', ENV1, [EC | ECS]), !.
 evaluate_rhs(ENV0, explist([E | ES]), ENV2, [VE | VS]) :-
-   ES \== [],
+   ES \= [],
    evaluate_rhs(ENV0, E, ENV1, [VE | _]), !,
    evaluate_rhs(ENV1, explist(ES), ENV2, VS), !.
 evaluate_rhs(ENV0, explist([E | _]), ENV1, error(Message)) :-
@@ -176,7 +182,9 @@ evaluate_rhs(ENV0, tableconstructor([_ | _]), [EC1 | ECS], [Reference]) :-
 evaluate_rhs(ENV0, enclosed(E), ENV1, []) :-
    evaluate_rhs(ENV0, E, ENV1, []), !.
 evaluate_rhs(ENV0, enclosed(E), ENV1, [V]) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]), !.
+   evaluate_rhs(ENV0, E, ENV1, VS),
+   VS \= error(_),
+   [V | _] = VS, !.
 evaluate_rhs(ENV0, enclosed(E), ENV1, error(Message)) :-
    evaluate_rhs(ENV0, E, ENV1, error(Message)).
 
@@ -367,42 +375,30 @@ evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, error('Right operand is not a number
 
 
 % The less-than-or-equal operator.
-evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(true)]) :-
+evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(true)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
    evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    A =< B, !.
-evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(false)]) :-
+evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(false)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
    evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
    A > B, !.
-evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(true)]) :-
+evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(true)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
    evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
    A @=< B, !.
-evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, [booleantype(false)]) :-
+evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(false)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
    evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
    A @> B, !.
-evaluate_rhs(ENV0, binop(lt, E1, _), ENV1, error('Left operand is not a number or string.')) :-
+evaluate_rhs(ENV0, binop(le, E1, _), ENV1, error('Left operand is not a number or string.')) :-
    evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    \+member(V, [numbertype(_), stringtype(_)]), !.
-evaluate_rhs(ENV0, binop(lt, E1, E2), ENV2, error('Right operand is not a number or string.')) :-
+evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, error('Right operand is not a number or string.')) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    member(V1, [numbertype(_), stringtype(_)]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
    \+member(V2, [numbertype(_), stringtype(_)]), !.
-
-
-
-% The greater-than operator.
-evaluate_rhs(ENV0, binop(gt, E1, E2), ENV1, VS) :-
-   evaluate_rhs(ENV0, binop(lt, E2, E1), ENV1, VS), !.
-
-
-
-% The greater-than-or-equal operator.
-evaluate_rhs(ENV0, binop(ge, E1, E2), ENV1, VS) :-
-   evaluate_rhs(ENV0, binop(le, E2, E1), ENV1, VS), !.
 
 
 
@@ -460,19 +456,12 @@ evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, error('Right operand is not a nu
 
 
 
-
-
-
 % Generic error handling for binary operators.
 evaluate_rhs(ENV0, binop(_, E1, _), ENV1, error(Message)) :-
    evaluate_rhs(ENV0, E1, ENV1, error(Message)), !.
 evaluate_rhs(ENV0, binop(_, E1, E2), ENV2, error(Message)) :-
    evaluate_rhs(ENV0, E1, ENV1, _),
    evaluate_rhs(ENV1, E2, ENV2, error(Message)), !.
-
-
-
-
 
 
 
@@ -493,7 +482,7 @@ evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
    evaluate_rhs(ENV0, E, ENV1, [referencetype(function, ECID, Address) | _]),
    evaluate_rhs(ENV1, explist(ES), ENV2, VS_es),
    'env:getValue'(ENV2, ECID, Address, function(PS, SS, ENVf)),
-   ENVf \== [],
+   ENVf \= [],
    'env:addContext'(ENVf, PS, VS_es, ENV3), !,
    evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss), !.
 
@@ -529,9 +518,9 @@ evaluate_stat(ENV0, statementlist([S | _]), ENV1, CTRL, VS) :-
 % The assignment statement.
 evaluate_stat(ENV0, assign(LHS, RHS), ENV3, continue, []) :-
    evaluate_lhs(ENV0, explist(LHS), ENV1, VS_lhs),
-   VS_lhs \== error(_),
+   VS_lhs \= error(_),
    evaluate_rhs(ENV1, explist(RHS), ENV2, VS_rhs),
-   VS_rhs \== error(_), !,
+   VS_rhs \= error(_), !,
    'env:setValues'(ENV2, VS_lhs, VS_rhs, ENV3).
 evaluate_stat(ENV0, assign(LHS, _), ENV1, error, error(Message)) :-
    evaluate_lhs(ENV0, explist(LHS), ENV1, error(Message)), !.
@@ -544,7 +533,7 @@ evaluate_stat(ENV0, assign(LHS, RHS), ENV2, error, error(Message)) :-
 % The function statement.
 evaluate_stat(ENV0, functioncall(E, ES), ENV1, continue, []) :-
    evaluate_rhs(ENV0, functioncall(E, ES), ENV1, VS),
-   VS \== error(_).
+   VS \= error(_).
 evaluate_stat(ENV0, functioncall(E, ES), ENV1, error, error(Message)) :-
    evaluate_rhs(ENV0, functioncall(E, ES), ENV1, error(Message)), !.
 
@@ -631,7 +620,7 @@ evaluate_stat(ENV0, localvariable(_, E), ENV1, error, error(Message)) :-
 % The return statement.
 evaluate_stat(ENV0, return(ES), ENV1, return, VS) :-
    evaluate_rhs(ENV0, explist(ES), ENV1, VS),
-   VS \== error(_), !.
+   VS \= error(_), !.
 evaluate_stat(ENV0, return(ES), ENV1, error, error(Message)) :-
    evaluate_rhs(ENV0, explist(ES), ENV1, error(Message)).
 
