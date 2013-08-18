@@ -123,7 +123,8 @@
 'map:contextprint'([[K, V] | M], Indentation) :-
    'print:indentation'(Indentation, Whitespace),
    ansi_format([bold, fg(yellow)], '~w~w', [Whitespace, K]),
-   ansi_format([], ' ~w\n', [V]),
+   'print:format'(V, V1),
+   ansi_format([], ' ~w\n', [V1]),
    'map:contextprint'(M, Indentation).
 
 
@@ -176,12 +177,12 @@
 % Add an object to the execution context.
 'env:addObject'(context(ECID, M), table(T), context(ECID, M1), Reference) :-
    'map:size'(M, Size),
-   format(atom(ObjectKey), '0x~16R', [Size]),
+   format(atom(ObjectKey), '0x~16r', [Size]),
    'map:setValue'(M, ObjectKey, table(T), M1),
    Reference = referencetype(table, ECID, ObjectKey).
 'env:addObject'(context(ECID, M), function(PS, SS, ENVf), context(ECID, M1), Reference) :-
    'map:size'(M, Size),
-   format(atom(ObjectKey), '0x~16R', [Size]),
+   format(atom(ObjectKey), '0x~16r', [Size]),
    'map:setValue'(M, ObjectKey, function(PS, SS, ENVf), M1),
    Reference = referencetype(function, ECID, ObjectKey).
 
@@ -227,7 +228,7 @@
    'env:getValue'(ENV0, ECID1, K1, V),
    'env:getContext'(ENV0, ECID, context(_, M)),
    'map:size'(M, Size),
-   format(atom(ObjectKey), '0x~16R', [Size]),
+   format(atom(ObjectKey), '0x~16r', [Size]),
    'env:setValue'(ENV0, ECID, ObjectKey, V, ENV1),
    'env:setValue'(ENV1, ECID, K, referencetype(Type, ECID, ObjectKey), ENV2), !,
    'env:setValues'(ENV2, AS, VS, ENV3).
@@ -265,17 +266,37 @@ writeln(Line) :- write(Line), nl.
 'print:format'(niltype(nil), nil).
 'print:format'(numbertype(N), N).
 'print:format'(booleantype(B), B).
-'print:format'(stringtype(S), Output) :-
-   format(atom(Output), '"~w"', S).
-'print:format'(referencetype(Type, ECID, N), Reference) :-
-   format(atom(Reference), '~w:~w:~w', [Type, ECID, N]).
-'print:format'([Value], FormattedValue) :-
-   'print:format'(Value, FormattedValue).
-'print:format'([Value | Values], FullyFormattedValues) :-
-   'print:format'(Value, FormattedValue),
-   'print:format'(Values, FormattedValues),
-   atom_concat(FormattedValue, ', ', TMP),
-   atom_concat(TMP, FormattedValues, FullyFormattedValues).
+'print:format'(stringtype(S), Output) :- format(atom(Output), '"~w"', S).
+'print:format'(referencetype(T, C, N), Output) :- format(atom(Output), '~w:~w:~w', [T, C, N]).
+
+'print:format'(function(PS, SS, RS), Output) :-
+   'print:format'(PS, FPS),
+   'print:format'(SS, FSS),
+   format(atom(Output), '<~w, function(~w){~w}>', [RS, FPS, FSS]).
+
+'print:format'(table(FS), Output) :-
+   'print:format'(map(FS), FFS),
+   format(atom(Output), '{~w}', [FFS]).
+
+'print:format'([], '').
+'print:format'([Value], Output) :-
+   'print:format'(Value, Output).
+'print:format'([Value | Values], Output) :-
+   'print:format'(Value, TMP0),
+   'print:format'(Values, TMP1),
+   format(atom(Output), '~w, ~w', [TMP0, TMP1]).
+
+'print:format'(map([[K, V]]), Output) :-
+   'print:format'(K, FK),
+   'print:format'(V, FV),
+   format(atom(Output), '[~w] = ~w', [FK, FV]), !.
+'print:format'(map([[K, V] | VS]), Output) :-
+   'print:format'(K, FK),
+   'print:format'(V, FV),
+   'print:format'(map(VS), FVS),
+   format(atom(Output), '[~w] = ~w, ~w', [FK, FV, FVS]).
+
+'print:format'(Input, Input).
 
 
 % Print indentation whitespace.
