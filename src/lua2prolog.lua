@@ -136,23 +136,54 @@ end
 -- param ASTNode the node to convert.
 -- Returns the string 'tabletype(t)', where t is a table value.
 convert["Table"] = function(ASTNode)
-   -- Create table entries while taking implicit keys into account.
-   local nextImplicitKey = 1
-   local output = ""
-   for i = 1, #ASTNode do
-      -- If the entry is a pair, then it already has a key.
-      local hasKey = (ASTNode[i].tag == "Pair")
-      if (hasKey) then
-         output = output .. ASTNodeToProlog(ASTNode[i])
-      else
-         output = output .. "[numbertype(" .. nextImplicitKey .. "), " .. ASTNodeToProlog(ASTNode[i]) .. "]"
-         nextImplicitKey = nextImplicitKey + 1
-      end
-      if (i < #ASTNode) then
-         output = output .. ", "
+   local nElements = #ASTNode
+
+   -- If there're no elements in the table, return an empty table constructor.
+   if nElements == 0 then
+      return "tableconstructor([])"
+   end
+
+   -- Check if the field list has no explicit keys, i.e. it's a list of expressions.
+   local isExplist = true
+   for i = 1, nElements do
+      -- If the entry is a pair, then a key has been set.
+      if ASTNode[i].tag == "Pair" then
+         isExplist = false
+         break
       end
    end
-   return "tableconstructor([" .. output .. "])"
+
+   if isExplist then
+      -- If we have a list of expressions, then we don't need to calculate implicit keys.
+      local output = ""
+      for i = 1, nElements do
+         output = output .. ASTNodeToProlog(ASTNode[i]) .. ", "
+      end
+
+      -- Remove trailing ", " and return the output.
+      return "tableconstructor(explist([" .. output:sub(1, string.len(output) - 2) .. "]))"
+   else
+      -- On the other hand, if a key is set for at least one table entry, then implicit
+      -- keys need to be calculated.
+      local nextImplicitKey = 1
+      local output = ""
+
+      for i = 1, #ASTNode do
+         -- If the node is a pair, then it has a key.
+         local hasKey = (ASTNode[i].tag == "Pair")
+         if hasKey then
+            output = output .. ASTNodeToProlog(ASTNode[i])
+         else
+            -- Add an implicit key otherwise.
+            output = output .. "[numbertype(" .. nextImplicitKey .. "), " .. ASTNodeToProlog(ASTNode[i]) .. "]"
+            nextImplicitKey = nextImplicitKey + 1
+         end
+         if i < #ASTNode then
+            output = output .. ", "
+         end
+      end
+      return "tableconstructor(fieldlist([" .. output .. "]))"
+   end
 end
 
 -- Convert a variable argument type node into Prolog.

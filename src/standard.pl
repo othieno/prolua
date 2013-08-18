@@ -80,6 +80,20 @@
    'map:build'(KS, [], M),
    append([[K, niltype(nil)]], M, M1).
 
+% Create a map from a list of values only. The keys are generated.
+'map:build'([], []).
+'map:build'(VS, M) :-
+   length(VS, Length),
+   'map:generateKeys'(1, Length, KS),
+   'map:build'(KS, VS, M).
+
+% Generate a list of integer keys from I to (I + N).
+'map:generateKeys'(_, 0, []).
+'map:generateKeys'(I, N, [numbertype(I) | KS]) :-
+   I > 0,
+   J is I + 1,
+   M is N - 1,
+   'map:generateKeys'(J, M, KS).
 
 % Does a given key exist in the map?
 'map:keyExists'([], _) :- false.
@@ -296,7 +310,7 @@ writeln(Line) :- write(Line), nl.
 
 % Print execution contexts.
 'print:context'(context(ECID, M)) :-
-   ansi_format([bold, negative, fg(magenta)], '% Execution Context ~w \n', [ECID]),
+   ansi_format([bold, negative, fg(magenta)], ' Execution Context ~w \n', [ECID]),
    'map:contextprint'(M, 2),
    ansi_format([bold, fg(magenta), crossed_out], '                      \n', []).
 'print:context'([]).

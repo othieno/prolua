@@ -92,6 +92,30 @@ evaluate_rhs(ENV0, explist([E | ES]), ENV2, error(Message)) :-
 
 
 
+% Evaluate a list of fields.
+evaluate_rhs(ENV0, fieldlist([]), ENV0, []).
+evaluate_rhs(ENV0, fieldlist([[FK, FV] | FS]), ENV3, [[VK, VV] | VS]) :-
+   evaluate_rhs(ENV0, FK, ENV1, [VK | _]),
+   VK \= error(_),
+   evaluate_rhs(ENV1, FV, ENV2, [VV | _]),
+   VV \= error(_),
+   evaluate_rhs(ENV2, fieldlist(FS), ENV3, VS),
+   VS \= error(_), !.
+evaluate_rhs(ENV0, fieldlist([[FK, _] | _]), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, FK, ENV1, error(Message)), !.
+evaluate_rhs(ENV0, fieldlist([[FK, FV] | _]), ENV2, error(Message)) :-
+   evaluate_rhs(ENV0, FK, ENV1, [VK | _]),
+   VK \= error(_),
+   evaluate_rhs(ENV1, FV, ENV2, error(Message)), !.
+evaluate_rhs(ENV0, fieldlist([[FK, FV] | FS]), ENV3, error(Message)) :-
+   evaluate_rhs(ENV0, FK, ENV1, [VK | _]),
+   VK \= error(_),
+   evaluate_rhs(ENV1, FV, ENV2, [VV | _]),
+   VV \= error(_),
+   evaluate_rhs(ENV2, fieldlist(FS), ENV3, error(Message)).
+
+
+
 % Evaluate values.
 evaluate_rhs(ENV0, niltype(nil), ENV0, [niltype(nil)]).
 evaluate_rhs(ENV0, booleantype(B), ENV0, [booleantype(B)]) :-
@@ -103,78 +127,25 @@ evaluate_rhs(ENV0, referencetype(Type, ECID, K), ENV0, [referencetype(Type, ECID
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 % Table constructor.
 evaluate_rhs(ENV0, tableconstructor([]), [EC1 | ECS], [Reference]) :-
    [EC | ECS] = ENV0,
    'env:addObject'(EC, table([]), EC1, Reference), !.
-evaluate_rhs(ENV0, tableconstructor([_ | _]), [EC1 | ECS], [Reference]) :-
-   [EC | ECS] = ENV0,
-   'env:addObject'(EC, table(['???']), EC1, Reference).
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+evaluate_rhs(ENV0, tableconstructor(explist(ES)), [EC1 | ECS], [Reference]) :-
+   evaluate_rhs(ENV0, explist(ES), ENV1, VS),
+   VS \= error(_),
+   [EC | ECS] = ENV1,
+   'map:build'(VS, M),
+   'env:addObject'(EC, table(M), EC1, Reference), !.
+evaluate_rhs(ENV0, tableconstructor(explist(ES)), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, explist(ES), ENV1, error(Message)), !.
+evaluate_rhs(ENV0, tableconstructor(fieldlist(FS)), [EC1 | ECS], [Reference]) :-
+   evaluate_rhs(ENV0, fieldlist(FS), ENV1, VS),
+   VS \= error(_),
+   [EC | ECS] = ENV1,
+   'env:addObject'(EC, table(VS), EC1, Reference), !.
+evaluate_rhs(ENV0, tableconstructor(fieldlist(FS)), ENV1, error(Message)) :-
+   evaluate_rhs(ENV0, fieldlist(FS), ENV1, error(Message)).
 
 
 
