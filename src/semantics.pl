@@ -53,21 +53,18 @@ evaluate_lhs([EC | ECS], variable(N), [EC | ECS], [ECID, N]) :-
 
 
 
-
-
-                                                                                                      /*
-% Evaluate a left-hand side field accessor.
-evaluate_lhs(ETS, RS, access(R, _), ETS1, error(Message)) :-
-   evaluate_rhs(ETS, RS, R, ETS1, error(Message)).
-
-evaluate_lhs(ETS, RS, access(R, K), ETS2, error(Message)) :-
-   evaluate_rhs(ETS, RS, R, ETS1, _),
-   evaluate_rhs(ETS1, RS, K, ETS2, error(Message)).
-
-evaluate_lhs(ETS, RS, access(R, K), ETS2, [V_r, V_k]) :-
-   evaluate_rhs(ETS, RS, R, ETS1, [V_r | _]),
-   evaluate_rhs(ETS1, RS, K, ETS2, [V_k | _]).
-                                                                                                      */
+% Evaluate a left-hand side table field accessor.
+evaluate_lhs(ENV0, access(E1, E2), ENV2, [referencetype(table, ECID, N), FK]) :-
+   evaluate_rhs(ENV0, E1, ENV1, [referencetype(table, ECID, N) | _]),
+   evaluate_rhs(ENV1, E2, ENV2, [FK | _]), !.
+evaluate_lhs(ENV0, access(E1, _), ENV1, error('Accessing an object that is not a table.')) :-
+   evaluate_rhs(ENV0, E1, ENV1, [referencetype(T, _, _) | _]),
+   T \== table, !.
+evaluate_lhs(ENV0, access(E1, _), ENV1, error(Message)) :-
+   evaluate_lhs(ENV0, E1, ENV1, error(Message)), !.
+evaluate_lhs(ENV0, access(E1, E2), ENV2, error(Message)) :-
+   evaluate_lhs(ENV0, E1, ENV1, [_, _]),
+   evaluate_rhs(ENV1, E2, ENV2, error(Message)).
 
 
 
@@ -170,15 +167,13 @@ evaluate_rhs(ENV0, variable(N), ENV1, error(Message)) :-
 
 
 
-                                                                                                            /*
-% Evaluate a right-hand side field accessor.
-evaluate_rhs(ETS, RS, access(R, K), ETS1, error(Message)) :-
-   evaluate_lhs(ETS, RS, access(R, K), ETS1, error(Message)).
-
-evaluate_rhs(ETS, RS, access(R, K), ETS1, [V]) :-
-   evaluate_lhs(ETS, RS, access(R, K), ETS1, [R1, K1]),
-   env_getvalue(ETS1, R1, K1, V).
-                                                                                                            */
+% Evaluate a right-hand side table field accessor.
+evaluate_rhs(ENV0, access(T, K), ENV1, [V]) :-
+   evaluate_lhs(ENV0, access(T, K), ENV1, [referencetype(_, ECID, TK), FK]),
+   'env:getValue'(ENV0, ECID, TK, table(M)),
+   'map:getValue'(M, FK, V), !.
+evaluate_rhs(ENV0, access(T, K), ENV1, error(Message)) :-
+   evaluate_lhs(ENV0, access(T, K), ENV1, error(Message)).
 
 
 
@@ -466,9 +461,6 @@ evaluate_rhs(ENV0, functioncall(E, _), ENV1, error(Message)) :-
 evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Expression is not a callable object.')) :-
    evaluate_rhs(ENV0, E, ENV1, [V | _]),
    V \= referencetype(_, _, _), !.
-
-
-
 
 
 
