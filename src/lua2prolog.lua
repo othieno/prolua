@@ -396,34 +396,58 @@ convert["Repeat"] = function(ASTNode)
    return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", [" .. ASTNodeToProlog(ASTNode[1]) .. "])"
 end
 
--- Convert a numerical for loop node into Prolog.
--- param ASTNode the node to be converted.
--- Returns the string 'for(n, i, e, s, b)' where n is the name of the count variable,
--- i is an expression that evaluates into a numbertype and which will be the count
--- variable's initial value, e an expression that evaluates into a numbertype and
--- will be the count variable's stop value, s an expression that evaluates into a
--- numbertype which determines the count variable's increment value, and b the
--- instruction block that is executed while the count variable has not reached it's
--- end value.
-convert["Fornum"] = function(ASTNode)
-   -- Get the variable name, and the initial and end values.
-   local variable = "'" .. ASTNode[1][1] .. "'"
-   local start = ASTNodeToProlog(ASTNode[2])
-   local stop = ASTNodeToProlog(ASTNode[3])
 
-   -- Get the increment value. If this value is not specified, then
-   -- it is implicitly set to numbertype(1).
-   local increment = "numbertype(1)"
+-- Convert a numerical for loop node into Prolog. For loops have no special syntax and
+-- instead rely on while-do statements. The expression 'for i = e1, e2, e3 do block end'
+-- is equivalent to:
+-- do
+--    local var, limit, step = tonumber(e1), tonumber(e2), tonumber(e3)
+--    if not (var and limit and step) then error() end
+--    while (step > 0 and var <= limit) or (step <= 0 and var >= limit) do
+--       local i = var
+--       block
+--       var = var + step
+--    end
+-- end
+convert["Fornum"] = function(ASTNode)
+   -- Get range values.
+   local initial = ASTNodeToProlog(ASTNode[2])
+   local limit = ASTNodeToProlog(ASTNode[3])
+
+   -- Get the increment value. If unspecified, then it's implicitly set to 'numbertype(1)'.
+   local step = "numbertype(1)"
    local nodeLength = #ASTNode
    if (nodeLength > 4) then
-      increment = ASTNodeToProlog(ASTNode[4])
+      step = ASTNodeToProlog(ASTNode[4])
    end
 
    -- Get the instruction block.
-   local block = "do([" .. ASTNodeToProlog(ASTNode[nodeLength]) .. "])"
+   local block = ASTNodeToProlog(ASTNode[nodeLength])
+   if #block > 0 then
+      block = block .. ", "
+   end
+
+   -- Create the condition expression.
+   local condition =
+   "binop(or," ..
+      "binop(and, binop(lt, numbertype(0), variable('step')), binop(le, variable('var'), variable('limit'))), " ..
+      "binop(and, binop(le, variable('step'), numbertype(0)), binop(le, variable('limit'), variable('var')))" ..
+   ")"
+
+   -- The error function call incase an expression is not a number.
+   local error = "functioncall(variable('error'), [stringtype('Expression is not a number.')])"
 
    return
-   "for(" .. variable .. ", " .. start .. ", " .. stop .. ", " .. increment .. ", " .. block .. ")"
+   "do([" ..
+      "localvariable('var',   functioncall(variable('tonumber'), [" .. initial .. "])), " ..
+      "localvariable('limit', functioncall(variable('tonumber'), [" .. limit   .. "])), " ..
+      "localvariable('step',  functioncall(variable('tonumber'), [" .. step    .. "])), " ..
+      "if(unop(not, binop(and, variable('var'), binop(and, variable('limit'), variable('step')))), " .. error .. ", do([])), " ..
+      "while(" .. condition .. ", [" ..
+         "localvariable('" .. ASTNode[1][1] .. "', variable('var')), " .. block ..
+         "assign([variable('var')], [binop(add, variable('var'), variable('step'))])" ..
+      "])" ..
+   "])"
 end
 
 -- Convert a generic for loop node into Prolog.
