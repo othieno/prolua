@@ -135,10 +135,14 @@
 % The initial environment mapping.
 'env:0'(ECID,
    [
-      ['0x1', function(['value'], [return([unop(type, variable('value'))])], [])],
-      ['0x2', function(['output'], [], [])],
-      ['type',  referencetype(function, ECID, '0x1')],
-      ['print', referencetype(function, ECID, '0x2')]
+      ['0x1', function(['value'], [intrinsic(type, variable('value'))], [])],
+      ['0x2', function(['output'], [intrinsic(print, variable('output'))], [])],
+      ['0x3', function(['error'], [intrinsic(error, variable('error'))], [])],
+      ['0x4', function(['value'], [intrinsic(tonumber, variable('value'))], [])],
+      ['type', referencetype(function, ECID, '0x1')],
+      ['print', referencetype(function, ECID, '0x2')],
+      ['error', referencetype(function, ECID, '0x3')],
+      ['tonumber', referencetype(function, ECID, '0x4')]
    ]
 ).
 

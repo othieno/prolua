@@ -196,13 +196,6 @@ evaluate_rhs([EC | ECS], '...', [EC | ECS], VS) :-
 
 
 
-% The type operator.
-evaluate_rhs(ENV0, unop(type, E), ENV1, [type(Type)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   'std:type'(V, Type), !.
-
-
-
 % The unary minus operator.
 evaluate_rhs(ENV0, unop(unm, E), ENV1, [numbertype(M)]) :-
    evaluate_rhs(ENV0, E, ENV1, [numbertype(N) | _]),
@@ -452,7 +445,7 @@ evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
    'env:addContext'(ENVf, PS, VS_es, ENV3), !,
    evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss), !.
 
-evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Metatables not implemented yet!')) :-             % TODO
+evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Metatables not implemented yet!')) :-
    evaluate_rhs(ENV0, E, ENV1, [referencetype(table, _, _) | _]), !.
 
 
@@ -594,7 +587,47 @@ evaluate_stat(ENV0, break, ENV0, break, []).
 
 
 
-% Evaluate a chunk.
+% Intrinsic statement evaluation.
+% ------------------------------------------------------------------------------
+
+% The error statement.
+evaluate_stat(ENV0, intrinsic(error, E), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, [stringtype(Message) | _]), !.
+evaluate_stat(ENV0, intrinsic(error, E), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+
+
+
+% The type statement.
+evaluate_stat(ENV0, intrinsic(type, E), ENV1, return, [type(Type)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
+   'std:type'(V, Type), !.
+evaluate_stat(ENV0, intrinsic(type, E), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+
+
+
+% The print statement.
+evaluate_stat(ENV0, intrinsic(print, _), ENV0, continue, []).
+
+
+
+% The tonumber statement.
+evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, return, [numbertype(N)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [numbertype(N) | _]), !.
+evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, return, [numbertype(N)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [stringtype(S) | _]),
+   atom_number(S, N), !.
+evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, return, [niltype(nil)]) :-
+   evaluate_rhs(ENV0, E, ENV1, [V | _]),
+   \+member(V, [numbertype(_), stringtype(_)]), !.
+evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, error, error(Message)) :-
+   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+
+
+
+% Program evaluation.
+% ------------------------------------------------------------------------------
 'evaluate:chunk'([], _, [], []).
 'evaluate:chunk'(Statements, Arguments, Environment, Result) :-
    'env:addContext'([], ['...'], Arguments, [context(ECID, M)]),
