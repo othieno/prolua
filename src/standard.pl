@@ -49,6 +49,26 @@
 
 
 
+% Copy an object from one execution context to another.
+% ------------------------------------------------------------------------------
+'std:memcpy'(ENV0, referencetype(RT, ECID, RK), ECID, ENV0, referencetype(RT, ECID, RK)).
+'std:memcpy'(ENV0, referencetype(RT, RECID, RK), ECID, ENV1, referencetype(RT, ECID, Key)) :-
+	ECID \== RECID,
+	'env:getValue'(ENV0, RECID, RK, Object),
+   'env:getContext'(ENV0, ECID, context(_, M)),
+   'map:size'(M, Size),
+   'std:toHex'(Size, Key),
+   'env:setValue'(ENV0, ECID, Key, Object, ENV1), !.
+
+
+% Convert a numerical value from decimal to hexadecimal.
+'std:toHex'(Decimal, Hexadecimal) :-
+	number(Decimal),
+	format(atom(Hexadecimal), '0x~16r', [Decimal]).
+'std:toHex'(Decimal, Decimal) :- \+number(Decimal).
+
+
+
 % Map manipulation.
 % ------------------------------------------------------------------------------
 
@@ -181,12 +201,12 @@
 % Add an object to the execution context.
 'env:addObject'(context(ECID, M), table(T), context(ECID, M1), Reference) :-
    'map:size'(M, Size),
-   format(atom(ObjectKey), '0x~16r', [Size]),
+   'std:toHex'(Size, ObjectKey),
    'map:setValue'(M, ObjectKey, table(T), M1),
    Reference = referencetype(table, ECID, ObjectKey).
 'env:addObject'(context(ECID, M), function(PS, SS, ENVf), context(ECID, M1), Reference) :-
    'map:size'(M, Size),
-   format(atom(ObjectKey), '0x~16r', [Size]),
+   'std:toHex'(Size, ObjectKey),
    'map:setValue'(M, ObjectKey, function(PS, SS, ENVf), M1),
    Reference = referencetype(function, ECID, ObjectKey).
 
@@ -199,43 +219,63 @@
    'map:getValue'(Map, Key, Value).
 
 
-% Set a value in a given context, based on a key.
-'env:setValue'(context(ECID, M), K, V, context(ECID, M1)) :-
-   'map:setValue'(M, K, V, M1).
-'env:setValue'([], ECID, _, _, error(Message)) :-
-   atom_concat('Could not find execution context #', ECID, Message), !.
-'env:setValue'([context(ECID, M) | ECS], ECID, K, V, [context(ECID, M1) | ECS]) :-
-   'map:setValue'(M, K, V, M1), !.
-'env:setValue'([context(ECID, M) | ECS], ECID1, K, V, ECS2) :-
-   ECID \== ECID1,
-   'env:setValue'(ECS, ECID1, K, V, ECS1),
-   append([context(ECID, M)], ECS1, ECS2), !.
-'env:setValue'([context(ECID, _) | ECS], ECID1, K, V, error(Message)) :-
-   ECID \== ECID1,
-   'env:setValue'(ECS, ECID1, K, V, error(Message)).
-
-
 % Set multiple values.
 'env:setValues'(ENV0, [], _, ENV0).
-'env:setValues'(ENV0, [[ECID, K] | AS], [], ENV2) :-
-   'env:setValue'(ENV0, ECID, K, niltype(nil), ENV1),
-   'env:setValues'(ENV1, AS, [], ENV2), !.
-'env:setValues'(ENV0, [[ECID, K] | AS], [V | VS], ENV2) :-
-   V \= referencetype(_, _, _),
-   'env:setValue'(ENV0, ECID, K, V, ENV1), !,
-   'env:setValues'(ENV1, AS, VS, ENV2), !.
-'env:setValues'(ENV0, [[ECID, K] | AS], [referencetype(Type, ECID, K1) | VS], ENV2) :-
-   'env:setValue'(ENV0, ECID, K, referencetype(Type, ECID, K1), ENV1), !,
-   'env:setValues'(ENV1, AS, VS, ENV2), !.
-'env:setValues'(ENV0, [[ECID, K] | AS], [referencetype(Type, ECID1, K1) | VS], ENV3) :-
+'env:setValues'(ENV0, [[A, K] | AS], [], ENV2) :-
+	'env:setValue'(ENV0, [A, K], niltype(nil), ENV1),
+	'env:setValues'(ENV1, AS, [], ENV2), !.
+'env:setValues'(ENV0, [[A, K] | AS], [V | VS], ENV2) :-
+	'env:setValue'(ENV0, [A, K], V, ENV1),
+	'env:setValues'(ENV1, AS, VS, ENV2), !.
+
+
+% Set values based on the address type.
+'env:setValue'(ENV0, [ECID, K], V, ENV1) :-
+	V \= referencetype(_, _, _),
+	number(ECID),
+	'env:setValue'(ENV0, ECID, K, V, ENV1), !.
+'env:setValue'(ENV0, [ECID, K], referencetype(RT, RECID, RK), ENV2) :-
+	'std:memcpy'(ENV0, referencetype(RT, RECID, RK), ECID, ENV1, V),
+	number(ECID),
+	'env:setValue'(ENV1, ECID, K, V, ENV2), !.
+'env:setValue'(ENV0, [referencetype(table, ECID, RK), FK], V, ENV1) :-
+	V \= referencetype(_, _, _),
+	'env:setTableField'(ENV0, referencetype(table, ECID, RK), FK, V, ENV1), !.
+'env:setValue'(ENV0, [referencetype(table, ECID, RK), FK], V, ENV2) :-
+	V = referencetype(_, _, _),
+	'std:memcpy'(ENV0, V, ECID, ENV1, V1),
+	'env:setTableField'(ENV1, referencetype(table, ECID, RK), FK, V1, ENV2).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+% setValue/4
+'env:setValue'(context(ECID, M), K, V, context(ECID, M1)) :-
+   'map:setValue'(M, K, V, M1).
+
+% setValue/5
+'env:setValue'([], _, _, _, []).
+'env:setValue'([context(ECID, M) | ECS], ECID, K, V, [context(ECID, M1) | ECS]) :-
+   'map:setValue'(M, K, V, M1), !.
+'env:setValue'([context(ECID, M) | ECS], ECID1, K, V, [context(ECID, M) | ECS1]) :-
    ECID \== ECID1,
-   'env:getValue'(ENV0, ECID1, K1, V),
-   'env:getContext'(ENV0, ECID, context(_, M)),
-   'map:size'(M, Size),
-   format(atom(ObjectKey), '0x~16r', [Size]),
-   'env:setValue'(ENV0, ECID, ObjectKey, V, ENV1),
-   'env:setValue'(ENV1, ECID, K, referencetype(Type, ECID, ObjectKey), ENV2), !,
-   'env:setValues'(ENV2, AS, VS, ENV3).
+   'env:setValue'(ECS, ECID1, K, V, ECS1).
+
+% setTableField/5.
+'env:setTableField'(ENV0, referencetype(table, ECID, RK), FK, V, ENV1) :-
+	'env:getValue'(ENV0, ECID, RK, table(M)),
+	'map:setValue'(M, FK, V, M1),
+	'env:setValue'(ENV0, ECID, RK, table(M1), ENV1).
 
 
 % Create a new context.
