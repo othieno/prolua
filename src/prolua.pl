@@ -33,15 +33,22 @@ main :-
    main(Statements, CommandLineArguments),
    halt.
 
-% Evaluate a list of statements. Before we can evaluate the statements, we load
-% the 'syntax', 'semantics' and 'standard' knowledge bases, then evaluate the Lua
-% program. When evaluation is complete, the execution environment, any results,
-% as well as runtime statistics are printed.
+% Evaluate a list of statements. Before we can evaluate the statements, the
+% 'standard' and 'syntax' knowledge bases are loaded and the input program is
+% checked for syntactic correctness. If it is, the 'semantics' knowledge base
+% is loaded and the program is evaluated. When evaluation is completed, the
+% execution environment, any results, as well as runtime statistics are printed.
 main(Statements, CommandLineArguments) :-
-   consult('syntax.pl'),
-   consult('semantics.pl'),
    consult('standard.pl'),
-   'evaluate:chunk'(Statements, CommandLineArguments, Environment, Result),
-   'print:environment'(Environment),
-   'print:result'(Result),
-   'print:statistics'.
+   consult('syntax.pl'),
+   (
+      \+statements(Statements),
+      'print:result'(error('The program is syntactically incorrect.'))
+   );
+   (
+      consult('semantics.pl'),
+      'evaluate:chunk'(Statements, CommandLineArguments, Environment, Result),
+      'print:environment'(Environment),
+      'print:result'(Result),
+      'print:statistics'
+   ).
