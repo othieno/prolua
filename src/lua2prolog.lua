@@ -80,7 +80,7 @@ convert["Number"] = function(ASTNode)
    return "numbertype(" .. ASTNode[1] .. ")"
 end
 
--- Convert a given string s to 'stringtype('s')' formatting if need be.
+-- Convert a given string s to 'stringtype('s')', formatting s if need be.
 function toStringType(string)
    local formattedOutput = string.format("%q", string)
 
@@ -110,8 +110,8 @@ end
 
 -- Convert a function definition node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'function(ps, b)' where ps is a list of parameters
--- and b is the function's instruction block.
+-- Returns the string 'functiondef(ps, ss)' where ps is a list of parameters
+-- and ss is the function's statement block.
 convert["Function"] = function(ASTNode)
    -- Create function parameters.
    local parameters = ""
@@ -132,9 +132,10 @@ convert["Function"] = function(ASTNode)
    return "functiondef([" .. parameters .. "], [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 end
 
--- Convert a table type node into Prolog.
+-- Convert a table constructor node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'tabletype(t)', where t is a table value.
+-- Returns the string 'tableconstructor(E)', where E is an expression that's
+-- used to create the table.
 convert["Table"] = function(ASTNode)
    local nElements = #ASTNode
 
@@ -161,7 +162,7 @@ convert["Table"] = function(ASTNode)
       end
 
       -- Remove trailing ", " and return the output.
-      return "tableconstructor(explist([" .. output:sub(1, string.len(output) - 2) .. "]))"
+      return "tableconstructor(expressions([" .. output:sub(1, string.len(output) - 2) .. "]))"
    else
       -- On the other hand, if a key is set for at least one table entry, then implicit
       -- keys need to be calculated.
@@ -182,35 +183,34 @@ convert["Table"] = function(ASTNode)
             output = output .. ", "
          end
       end
-      return "tableconstructor(fieldlist([" .. output .. "]))"
+      return "tableconstructor(fields([" .. output .. "]))"
    end
 end
 
--- Convert a variable argument type node into Prolog.
+-- Convert a variadic expression node into Prolog.
 -- param ASTNode the node to be converted.
--- Returns the string 'varargtype'.
+-- Returns the string '...'.
 convert["Dots"] = function(ASTNode)
    return "'...'"
 end
 
--- Convert a pair into Prolog.
+-- Convert a pair node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string '[a, b]' where a and b are expressions.
+-- Returns the string '[e1, e2]' where e1 and e2 are expressions.
 convert["Pair"] = function(ASTNode)
    return "[" .. ASTNodeToProlog(ASTNode[1]) .. ", " .. ASTNodeToProlog(ASTNode[2]) .. "]"
 end
 
 -- Convert a parenthesised expression into Prolog.
 -- param ASTNode the node to convert.
--- Let the input be a node representing '(e)'. This function returns the expression e
--- converted into Prolog, thereby discarding the parentheses.
+-- Returns the string 'enclosed(e)' where e is an expression.
 convert["Paren"] = function(ASTNode)
    return "enclosed(" .. ASTNodeToProlog(ASTNode[1]) .. ")"
 end
 
--- Convert a 'do .. end' node into Prolog.
+-- Convert a 'do .. end' statement node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'do(b)' where b is an instruction block.
+-- Returns the string 'do(ss)' where ss is a statement block.
 convert["Do"] = function(ASTNode)
    local block = ""
    for i = 1, #ASTNode do
@@ -224,11 +224,11 @@ end
 
 -- Convert an 'if' node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'if(c, btrue, bfalse)' where c is the condition, btrue the
--- instruction block that is run if the condition is true, and bfalse if it is false.
+-- Returns the string 'if(c, sstrue, ssfalse)' where c is the condition, sstrue the
+-- statement block that is run if the condition is true, and ssfalse if it is false.
 -- In the case of an 'if .. elseif', the returned string will be
--- 'if(c1, btrue1, if(c2, btrue2, emptyblock))' and an 'if .. elseif .. else' statement
--- will produce 'if(c1, btrue1, if(c2, btrue2, bfalse))'
+-- 'if(c1, sstrue1, if(c2, sstrue2, do([])))' and an 'if .. elseif .. else' statement
+-- will produce 'if(c1, sstrue1, if(c2, sstrue2, ssfalse))'
 convert["If"] = function(ASTNode)
    -- Convert condition-body pairs.
    local output = ""
@@ -245,7 +245,7 @@ convert["If"] = function(ASTNode)
    return output .. "do([" .. bfalse .. "])" .. string.rep(")", #ASTNode/2)
 end
 
--- Convert an assignment node into Prolog.
+-- Convert an assignment statement node into Prolog.
 -- param ASTNode the node to convert.
 -- Returns the string 'assign(LHS, RHS)', where LHS and RHS are a list of
 -- left and right hand side expressions, respectively.
@@ -282,8 +282,8 @@ end
 -- Convert a local variable node into Prolog.
 -- param ASTNode the node to convert.
 -- Returns the string 'localvariable(n, v)', where n is the variable name and v is
--- the variable's initial value; or 'localvariable(n)', where no initial value is
--- specified, in which case it is implicitly set to 'nil'.
+-- the variable's initial value. If no value is specified, then nil is implied and
+-- the string 'localvariable(n, niltype(nil))' is returned.
 convert["Local"] = function(ASTNode)
    local output = ""
 
@@ -341,10 +341,11 @@ convert["Op"] = function(ASTNode)
    return arity .. name .. ", " .. operands .. ")"
 end
 
--- Convert a function call node into Prolog.
+-- Convert a function call statement node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'functioncall(v, ps)' where v is the variable referencing the function
--- and ps is a list of function arguments.
+-- Returns the string 'functioncall(e, es)' where e is an expression that should
+-- evaluate into a function or a table (with a metatable), and es is a list of
+-- function arguments.
 convert["Call"] = function(ASTNode)
    -- Create function arguments.
    local arguments = ""
@@ -357,7 +358,7 @@ convert["Call"] = function(ASTNode)
    return "functioncall(" .. ASTNodeToProlog(ASTNode[1]) .. ", [" .. arguments .. "])"
 end
 
--- Convert a return node into Prolog.
+-- Convert a return statement node into Prolog.
 -- param ASTNode the node to convert.
 -- Returns the string 'return(es)' where es is a list of expressions.
 convert["Return"] = function(ASTNode)
@@ -382,16 +383,16 @@ end
 
 -- Convert a while loop node into Prolog.
 -- param ASTNode the node to be converted.
--- Returns the string 'while(e, b)' where e is an expression that evaluates into a loop
--- condition and b is the instruction block that is executed while the condition is true.
+-- Returns the string 'while(e, ss)' where e is an expression that evaluates into a loop
+-- condition and ss is the statement block that is executed while the condition is true.
 convert["While"] = function(ASTNode)
    return "while(" .. ASTNodeToProlog(ASTNode[1]) .. ", [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 end
 
 -- Convert a repeat-until loop node into Prolog.
 -- param ASTNode the node to be converted.
--- Returns the string 'repeat(e, b)' where e is an expression that evaluates into a
--- condition and b is the instruction block that is executed until the condition is met.
+-- Returns the string 'repeat(e, ss)' where e is an expression that evaluates into a
+-- condition and ss is the statement block that is executed until the condition is met.
 convert["Repeat"] = function(ASTNode)
    return "repeat(" .. ASTNodeToProlog(ASTNode[2]) .. ", [" .. ASTNodeToProlog(ASTNode[1]) .. "])"
 end
@@ -452,33 +453,27 @@ end
 
 -- Convert a generic for loop node into Prolog.
 -- param ASTNode the node to be converted.
--- Returns the string 'for(vs, e, b)' where vs is a list of variables, e is an expression
--- that evaluates into a list of values that will be assigned to the variables, and b an
--- instruction block.
+-- Just like the numeric for loop, the generic for loop relies on a while-do statement.
+-- The statement 'for var_1, ..., var_n in explist do block end' is equivalent to
+-- do
+--    local f, s, var = explist
+--    while true do
+--       local var_1, ..., var_n = f(s, var)
+--       var = var_1
+--       if var == nil then break end
+--       block
+--    end
+-- end
 convert["Forin"] = function(ASTNode)
-   -- Get the variable names.
-   local variables = ""
-   local nVariables = #ASTNode[1]
-   for i = 1, nVariables do
-      variables = variables .. ASTNode[1][i][1]
-      if (i < nVariables) then
-         variables = variables .. ", "
-      end
-   end
-
-   -- Get the expressions and instruction block.
-   local expressions = ASTNodeToProlog(ASTNode[2])
-   local block = ASTNodeToProlog(ASTNode[3])
-
-   return "for([" .. variables .. "], " .. expressions .. ", do([" .. block .. "]))"
+   return "do([])"
 end
 
 -- Convert an object-oriented call node into Prolog.
 -- param ASTNode the node to be converted.
--- Since the colon operator is nothing more than a syntactic sugar, this
--- function returns the string 'functioncall(v, as)', where v is the variable
--- that references the function to call, and as is a list of arguments, with
--- the first being the object that made the function call.
+-- The colon operator is nothing more than a syntactic sugar, so this function
+-- returns the string 'functioncall(e, es)', where e is an expression that evaluates
+-- into a function, and es is a list of arguments, with the first item being the
+-- caller object.
 convert["Invoke"] = function(ASTNode)
    local tableName = ASTNodeToProlog(ASTNode[1])
    local functionName = ASTNodeToProlog(ASTNode[2])
@@ -512,28 +507,21 @@ end
 
 -- Convert a local function definition node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'localvariable(n, b)' where n is the variable name and
--- b is the function body.
--- FIXME
---[[
-local f = function () body end
-translates to
-
-     local f; f = function () body end
-not to
-
-     local f = function () body end
-]]
+-- A local function definition is a syntactic sugar. The expression
+-- 'local f = function() body end' translates to 'local f; f = function() body end'
 convert["Localrec"] = function(ASTNode)
-   -- Get the variable name and remove the closing parenthesis.
-   local output = ASTNodeToProlog(ASTNode[1])
-   output = output.sub(output, 1, string.len(output) - 1) .. ", "
+   local variable = ASTNodeToProlog(ASTNode[1])
+   local value  = ASTNodeToProlog(ASTNode[2])
 
-   -- Then add an initial value.
-   output = output .. ASTNodeToProlog(ASTNode[2]) .. ")"
+   -- Create the localvariable statement.
+   local localVariableStatement =
+   "local" .. variable:sub(1, string.len(variable) - 1) .. ", niltype(nil)), "
 
-   -- To finish up, prepend 'local' to the output.
-   return "local" .. output
+   -- Create assignment statement.
+   local assignStatement = "assign([" .. variable .. "], [" .. value .. "])"
+
+   -- Return the concatenation of both statements.
+   return localVariableStatement .. assignStatement
 end
 
 -- This function converts an AST's node into Prolog, in a format that
