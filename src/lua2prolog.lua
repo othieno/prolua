@@ -281,34 +281,32 @@ end
 
 -- Convert a local variable node into Prolog.
 -- param ASTNode the node to convert.
--- Returns the string 'localvariable(n, v)', where n is the variable name and v is
--- the variable's initial value. If no value is specified, then nil is implied and
--- the string 'localvariable(n, niltype(nil))' is returned.
+-- Declaring a local variable is made up of two parts. One creates the variable in
+-- the current scope and the second assigns a value to it. For example, the
+-- statement "local x, y, z = 1, 2, 3" will generate the following code:
+-- "localvariable('x'), localvariable('y'), localvariable('z'),  assign([variable('x'),
+-- variable('y'), variable('z')], [numbertype(1), numbertype(2), numbertype(3)])"
 convert["Local"] = function(ASTNode)
-   local output = ""
+   local instantiate = ""
+   local assign = "assign(["
 
-   -- The number of declared variables and values.
-   local nDeclaredVariables = #ASTNode[1]
-   local nDeclaredvalues = #ASTNode[2]
-
-   -- Get the variables.
-   for i = 1, nDeclaredVariables do
-      output = output .. "localvariable('" .. ((ASTNode[1])[i])[1] .. "'"
-
-      -- Does the variable have an initial value?
-      if (i <= nDeclaredvalues) then
-         output = output .. ", " .. ASTNodeToProlog((ASTNode[2])[i])
-      else
-         output = output .. ", niltype(nil)"
-      end
-      -- Close the parenthesis.
-      if (i < nDeclaredVariables) then
-         output = output .. "), "
-      else
-         output = output .. ")"
-      end
+   -- Get variables.
+   for i = 1, #ASTNode[1] do
+      local output = ASTNodeToProlog(ASTNode[1][i])
+      instantiate = instantiate .. "local" .. output .. ", "
+      assign = assign .. output .. ", "
    end
-   return output
+   assign = assign:sub(1, string.len(assign) - 2) .. "], ["
+
+   -- Get values.
+   for i = 1, #ASTNode[2] do
+      assign = assign .. ASTNodeToProlog(ASTNode[2][i]) .. ", "
+   end
+   assign = assign:sub(1, string.len(assign) - 2) .. "])"
+
+
+   -- Return the complete string.
+   return instantiate .. assign
 end
 
 -- Convert an operator node into Prolog.
@@ -412,7 +410,7 @@ end
 -- end
 convert["Fornum"] = function(ASTNode)
    -- Get range values.
-   local initial = ASTNodeToProlog(ASTNode[2])
+   local var = ASTNodeToProlog(ASTNode[2])
    local limit = ASTNodeToProlog(ASTNode[3])
 
    -- Get the increment value. If unspecified, then it's implicitly set to 'numbertype(1)'.
@@ -439,16 +437,18 @@ convert["Fornum"] = function(ASTNode)
    local error = "functioncall(variable('error'), [stringtype('Expression is not a number.')])"
 
    return
-   "do([" ..
-      "localvariable('var',   functioncall(variable('tonumber'), [" .. initial .. "])), " ..
-      "localvariable('limit', functioncall(variable('tonumber'), [" .. limit   .. "])), " ..
-      "localvariable('step',  functioncall(variable('tonumber'), [" .. step    .. "])), " ..
-      "if(unop(not, binop(and, variable('var'), binop(and, variable('limit'), variable('step')))), " .. error .. ", do([])), " ..
-      "while(" .. condition .. ", [" ..
-         "localvariable('" .. ASTNode[1][1] .. "', variable('var')), " .. block ..
-         "assign([variable('var')], [binop(add, variable('var'), variable('step'))])" ..
-      "])" ..
-   "])"
+   "do([localvariable('var'), localvariable('limit'), localvariable('step'), " ..
+   "assign([variable('var'), variable('limit'), variable('step')], [" ..
+      "functioncall(variable('tonumber'), [" .. var .. "]), " ..
+      "functioncall(variable('tonumber'), [" .. limit .. "]), " ..
+      "functioncall(variable('tonumber'), [" .. step .. "]) " ..
+   "]), " ..
+   "if(unop(not, binop(and, variable('var'), binop(and, variable('limit'), variable('step')))), " .. error .. ", do([])), " ..
+   "while(" .. condition .. ", [" ..
+      "localvariable('" .. ASTNode[1][1] .. "'), assign([variable('" .. ASTNode[1][1] .. "')], [variable('var')]), " ..
+      block ..
+      "assign([variable('var')], [binop(add, variable('var'), variable('step'))])" ..
+   "])])"
 end
 
 -- Convert a generic for loop node into Prolog.
@@ -514,14 +514,13 @@ convert["Localrec"] = function(ASTNode)
    local value  = ASTNodeToProlog(ASTNode[2])
 
    -- Create the localvariable statement.
-   local localVariableStatement =
-   "local" .. variable:sub(1, string.len(variable) - 1) .. ", niltype(nil)), "
+   local instantiate = "local" .. variable:sub(1, string.len(variable) - 1) .. "), "
 
-   -- Create assignment statement.
-   local assignStatement = "assign([" .. variable .. "], [" .. value .. "])"
+   -- Create the assign statement.
+   local assign = "assign([" .. variable .. "], [" .. value .. "])"
 
    -- Return the concatenation of both statements.
-   return localVariableStatement .. assignStatement
+   return instantiate .. assign
 end
 
 -- This function converts an AST's node into Prolog, in a format that
