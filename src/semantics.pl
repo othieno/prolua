@@ -1,238 +1,404 @@
-% The MIT License (MIT)
-%
-% Copyright (c) 2013 Jeremy Othieno.
-%
-% Permission is hereby granted, free of charge, to any person obtaining a copy
-% of this software and associated documentation files (the "Software"), to deal
-% in the Software without restriction, including without limitation the rights
-% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-% copies of the Software, and to permit persons to whom the Software is
-% furnished to do so, subject to the following conditions:
-%
-% The above copyright notice and this permission notice shall be included in
-% all copies or substantial portions of the Software.
-%
-% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-% THE SOFTWARE.
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2013 Jeremy Othieno.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 
-% This is the core of Prolua; where the evaluation semantics for all expressions
-% and statements are defined.
+% Value management.
+% ------------------------------------------------------------------------------
+
+% Return the type of a value.
+value_type(niltype(_), 'nil').
+value_type(booleantype(_), 'boolean').
+value_type(numbertype(_), 'number').
+value_type(stringtype(_), 'string').
+value_type(referencetype(table, _), 'table').
+value_type(referencetype(function, _), 'function').
+
+
+% Return the raw value.
+value_raw(niltype(nil), nil).
+value_raw(booleantype(B), B).
+value_raw(numbertype(N), N).
+value_raw(stringtype(S), S).
+value_raw(referencetype(Type, Address), [Type, Address]).
 
 
 % Expression evaluation.
 % ------------------------------------------------------------------------------
 
 % Evaluate a list of left-hand side (LHS) expressions.
-evaluate_lhs(ENV0, explist([]), ENV0, []).
-evaluate_lhs(ENV0, explist([E | ES]), ENV2, [[ECID, K] | AS]) :-
-   evaluate_lhs(ENV0, E, ENV1, [ECID, K]), !,
-   evaluate_lhs(ENV1, explist(ES), ENV2, AS), !.
-evaluate_lhs(ENV0, explist([E | _]), ENV1, error(Message)) :-
-   evaluate_lhs(ENV0, E, ENV1, error(Message)), !.
-evaluate_lhs(ENV0, explist([E | ES]), ENV2, error(Message)) :-
-   evaluate_lhs(ENV0, E, ENV1, _), !,
-   evaluate_lhs(ENV1, explist(ES), ENV2, error(Message)).
+evaluate_lhs(ENV0, expressions([]), ENV0, []).
+evaluate_lhs(ENV0, expressions([E | ES]), ENVn, Result) :-
+   evaluate_lhs(ENV0, E, ENV1, VS_E),
+   evaluate_lhs(ENV1, expressions(ES), ENV2, VS_ES),
+   (
+      VS_E \= error(_), VS_ES \= error(_) ->
+      (
+         ENVn = ENV2,
+         Result = [VS_E | VS_ES]
+      );
+      (
+         VS_E = error(_) ->
+         (
+            ENVn = ENV1,
+            Result = VS_E
+         );
+         (
+            ENVn = ENV2,
+            Result = VS_ES
+         )
+      )
+   ).
 
 
 
 % Evaluate a left-hand side variable.
-evaluate_lhs([EC], variable(N), [EC], [ECID, N]) :-
-   'env:getIdentifier'(EC, ECID), !.
-evaluate_lhs([EC | ECS], variable(N), [EC | ECS], [ECID, N]) :-
-   'env:keyExists'(EC, N), !,
-   'env:getIdentifier'(EC, ECID).
-evaluate_lhs([EC | ECS], variable(N), [EC | ECS], [ECID, N]) :-
-   \+'env:keyExists'(EC, N), !,
-   evaluate_lhs(ECS, variable(N), ECS, [ECID, N]).
+evaluate_lhs([ContextPath, Pool], variable(Name), [ContextPath, Pool], [Locator, Name]) :-
+   getContext(ContextPath, Pool, Context),
+   (
+      keyExists(Context, Name) ->
+      Locator = ContextPath;
+      (
+         popContext([ContextPath, _], [path(NewIndices), _]),
+         (
+            NewIndices = [] ->
+            Locator = ContextPath;
+            evaluate_lhs([path(NewIndices), Pool], variable(Name), _, [Locator, _])
+         )
+      )
+   ).
 
 
 
 % Evaluate a left-hand side table field accessor.
-evaluate_lhs(ENV0, access(E1, E2), ENV2, [referencetype(table, ECID, N), FK]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [referencetype(table, ECID, N) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [FK | _]), !.
-evaluate_lhs(ENV0, access(E1, _), ENV1, error('Accessing an object that is not a table.')) :-
-   evaluate_rhs(ENV0, E1, ENV1, [referencetype(T, _, _) | _]),
-   T \== table, !.
-evaluate_lhs(ENV0, access(E1, _), ENV1, error(Message)) :-
-   evaluate_lhs(ENV0, E1, ENV1, error(Message)), !.
-evaluate_lhs(ENV0, access(E1, E2), ENV2, error(Message)) :-
-   evaluate_lhs(ENV0, E1, ENV1, [_, _]),
-   evaluate_rhs(ENV1, E2, ENV2, error(Message)).
+evaluate_lhs(ENV0, access(E1, E2), ENVn, Result) :-
+   evaluate_rhs(ENV0, E1, ENV1, VS_E1),
+   evaluate_rhs(ENV1, E2, ENV2, VS_E2),
+   (
+      VS_E1 \= error(_), VS_E2 \= error(_) ->
+      (
+         VS_E1 \= [referencetype(table, _) | _] ->
+         (
+            ENVn = ENV1,
+            Result = error('Accessing an object that is not a table.')
+         );
+         (
+            VS_E1 = [Locator | _],
+            VS_E2 = [Key | _],
+            ENVn = ENV2,
+            Result = [Locator, Key]
+         )
+      );
+      (
+         VS_E1 = error(_) ->
+         (
+            ENVn = ENV1,
+            Result = VS_E1
+         );
+         (
+            ENVn = ENV2,
+            Result = VS_E2
+         )
+      )
+   ).
 
 
 
 % Evaluate a list of right-hand side (RHS) expressions.
-evaluate_rhs(ENV0, explist([]), ENV0, []).
-evaluate_rhs(ENV0, explist([E]), ENV1, VS) :-
-   E \== '...',
-   evaluate_rhs(ENV0, E, ENV1, VS), !.
-evaluate_rhs(ENV0, explist(['...']), ENV1, []) :-
-   evaluate_rhs(ENV0, '...', ENV1, [niltype(nil)]), !.
-evaluate_rhs(ENV0, explist(['...']), ENV1, [EC | ECS]) :-
-   evaluate_rhs(ENV0, '...', ENV1, [EC | ECS]), !.
-evaluate_rhs(ENV0, explist([E | ES]), ENV2, [VE | VS]) :-
-   ES \= [],
-   evaluate_rhs(ENV0, E, ENV1, [VE | _]), !,
-   evaluate_rhs(ENV1, explist(ES), ENV2, VS), !.
-evaluate_rhs(ENV0, explist([E | _]), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)), !.
-evaluate_rhs(ENV0, explist([E | ES]), ENV2, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, _), !,
-   evaluate_rhs(ENV1, explist(ES), ENV2, error(Message)).
+evaluate_rhs(ENV0, expressions(Expressions), ENVn, Result) :-
+(
+   Expressions = [] ->
+   (
+      Result = [],
+      ENVn = ENV0
+   );
+   (
+      [E | ES] = Expressions,
+      evaluate_rhs(ENV0, E, ENV1, VS_E),
+      evaluate_rhs(ENV1, expressions(ES), ENV2, VS_ES),
+      (
+         VS_E \= error(_), VS_ES \= error(_) ->
+         (
+            ENVn = ENV2,
+            (
+               ES = [] ->
+               (
+                  VS_E = [] ->
+                  Result = [];
+                  Result = VS_E
+               );
+               (
+                  VS_E = [] ->
+                  Result = [niltype(nil) | VS_ES];
+                  (
+                     VS_E = [V | _],
+                     Result = [V | VS_ES]
+                  )
+               )
+            )
+         );
+         (
+            VS_E = error(_) ->
+            (
+               ENVn = ENV1,
+               Result = VS_E
+            );
+            (
+               ENVn = ENV2,
+               Result = VS_ES
+            )
+         )
+      )
+   )
+).
 
 
 
 % Evaluate a list of fields.
-evaluate_rhs(ENV0, fieldlist([]), ENV0, []).
-evaluate_rhs(ENV0, fieldlist([[FK, FV] | FS]), ENV3, [[VK, VV] | VS]) :-
-   evaluate_rhs(ENV0, FK, ENV1, [VK | _]),
-   VK \= error(_),
-   evaluate_rhs(ENV1, FV, ENV2, [VV | _]),
-   VV \= error(_),
-   evaluate_rhs(ENV2, fieldlist(FS), ENV3, VS),
-   VS \= error(_), !.
-evaluate_rhs(ENV0, fieldlist([[FK, _] | _]), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, FK, ENV1, error(Message)), !.
-evaluate_rhs(ENV0, fieldlist([[FK, FV] | _]), ENV2, error(Message)) :-
-   evaluate_rhs(ENV0, FK, ENV1, [VK | _]),
-   VK \= error(_),
-   evaluate_rhs(ENV1, FV, ENV2, error(Message)), !.
-evaluate_rhs(ENV0, fieldlist([[FK, FV] | FS]), ENV3, error(Message)) :-
-   evaluate_rhs(ENV0, FK, ENV1, [VK | _]),
-   VK \= error(_),
-   evaluate_rhs(ENV1, FV, ENV2, [VV | _]),
-   VV \= error(_),
-   evaluate_rhs(ENV2, fieldlist(FS), ENV3, error(Message)).
+evaluate_rhs(ENV0, fields(Fields), ENVn, Result) :-
+(
+   Fields = [] ->
+   (
+      ENVn = ENV0,
+      Result = []
+   );
+   (
+      Fields = [[FK, FV] | FS],
+      evaluate_rhs(ENV0, FK, ENV1, VS_FK),
+      evaluate_rhs(ENV1, FV, ENV2, VS_FV),
+      evaluate_rhs(ENV2, fields(FS), ENV3, VS_FS),
+      (
+         VS_FK \= error(_), VS_FV \= error(_), VS_FS \= error(_) ->
+         (
+            VS_FK = [VK | _],
+            VS_FV = [VV | _],
+            ENVn = ENV3,
+            Result = [[VK, VV] | VS_FS]
+         );
+         (
+            VS_FK = error(_) ->
+            (
+               ENVn = ENV1,
+               Result = VS_FK
+            );
+            (
+               VS_FV = error(_) ->
+               (
+                  ENVn = ENV2,
+                  Result = VS_FV
+               );
+               (
+                  ENVn = ENV3,
+                  Result = VS_FS
+               )
+            )
+         )
+      )
+   )
+).
 
 
 
 % Evaluate values.
 evaluate_rhs(ENV0, niltype(nil), ENV0, [niltype(nil)]).
-evaluate_rhs(ENV0, booleantype(B), ENV0, [booleantype(B)]) :-
-   member(B, [false, true]).
-evaluate_rhs(ENV0, numbertype(N), ENV0, [numbertype(N)]).
+evaluate_rhs(ENV0, booleantype(B), ENV0, [booleantype(B)]).
 evaluate_rhs(ENV0, stringtype(S), ENV0, [stringtype(S)]).
-evaluate_rhs(ENV0, referencetype(Type, ECID, K), ENV0, [referencetype(Type, ECID, K)]) :-
-   member(Type, [table, function]).
+evaluate_rhs(ENV0, numbertype(N), ENV0, [numbertype(N)]).
+evaluate_rhs(ENV0, referencetype(Type, Address), ENV0, [referencetype(Type, Address)]).
 
 
 
 % Table constructor.
-evaluate_rhs(ENV0, tableconstructor([]), [EC1 | ECS], [Reference]) :-
-   [EC | ECS] = ENV0,
-   'env:addObject'(EC, table([]), EC1, Reference), !.
-evaluate_rhs(ENV0, tableconstructor(explist(ES)), [EC1 | ECS], [Reference]) :-
-   evaluate_rhs(ENV0, explist(ES), ENV1, VS),
-   VS \= error(_),
-   [EC | ECS] = ENV1,
-   'map:build'(VS, M),
-   'env:addObject'(EC, table(M), EC1, Reference), !.
-evaluate_rhs(ENV0, tableconstructor(explist(ES)), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, explist(ES), ENV1, error(Message)), !.
-evaluate_rhs(ENV0, tableconstructor(fieldlist(FS)), [EC1 | ECS], [Reference]) :-
-   evaluate_rhs(ENV0, fieldlist(FS), ENV1, VS),
-   VS \= error(_),
-   [EC | ECS] = ENV1,
-   'env:addObject'(EC, table(VS), EC1, Reference), !.
-evaluate_rhs(ENV0, tableconstructor(fieldlist(FS)), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, fieldlist(FS), ENV1, error(Message)).
+evaluate_rhs(ENV0, tableconstructor(Constructor), ENVn, Result) :-
+(
+   % Create an empty table.
+   Constructor = [] ->
+   (
+      objectAllocate(ENV0, table([]), ENVn, Reference),
+      Result = [Reference]
+   );
+   (
+      % Create a table from a list of fields.
+      Constructor = fields(_) ->
+      (
+         evaluate_rhs(ENV0, Constructor, ENV1, Map),
+         (
+            Map = error(_) ->
+            Result = Map;
+            (
+               objectAllocate(ENV1, table(Map), ENVn, Reference),
+               Result = [Reference]
+            )
+         )
+      );
+      (
+         % Create a table from a list of expressions.
+         Constructor = expressions(_) ->
+         (
+            evaluate_rhs(ENV0, Constructor, ENV1, Values),
+            (
+               Values = error(_) ->
+               Result = Values;
+               (
+                  map_build(Values, Map),
+                  objectAllocate(ENV1, table(Map), ENVn, Reference),
+                  Result = [Reference]
+               )
+            )
+         );
+         (
+            ENVn = ENV0,
+            Result = error('Unknown table constructor.')
+         )
+      )
+   )
+).
 
 
 
 % Enclosed expressions.
-evaluate_rhs(ENV0, enclosed(E), ENV1, []) :-
-   evaluate_rhs(ENV0, E, ENV1, []), !.
-evaluate_rhs(ENV0, enclosed(E), ENV1, [V]) :-
-   evaluate_rhs(ENV0, E, ENV1, VS),
-   VS \= error(_),
-   [V | _] = VS, !.
-evaluate_rhs(ENV0, enclosed(E), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_rhs(ENV0, enclosed(Expression), ENV1, Result) :-
+   evaluate_rhs(ENV0, Expression, ENV1, Values),
+   (
+      member(Values, [error(_), []]) ->
+      Result = Values;
+      (
+         [Value | _] = Values,
+         Result = [Value]
+      )
+   ).
 
 
 
 % Evaluate a right-hand side variable.
-evaluate_rhs(ENV0, variable(N), ENV1, [V]) :-
-   evaluate_lhs(ENV0, variable(N), ENV1, [ECID, N]),
-   'env:getValue'(ENV1, ECID, N, V), !.
-evaluate_rhs(ENV0, variable(N), ENV1, error(Message)) :-
-   evaluate_lhs(ENV0, variable(N), ENV1, error(Message)).
+evaluate_rhs(ENV0, variable(Name), [NewContextPath, NewPool], [Value]) :-
+   evaluate_lhs(ENV0, variable(Name), [NewContextPath, NewPool], [ContextPath, Name]),
+   getValue(ContextPath, NewPool, Name, Value).
 
 
 
 % Evaluate a right-hand side table field accessor.
-evaluate_rhs(ENV0, access(T, K), ENV1, [V]) :-
-   evaluate_lhs(ENV0, access(T, K), ENV1, [referencetype(_, ECID, TK), FK]),
-   'env:getValue'(ENV0, ECID, TK, table(M)),
-   'map:getValue'(M, FK, V), !.
-evaluate_rhs(ENV0, access(T, K), ENV1, error(Message)) :-
-   evaluate_lhs(ENV0, access(T, K), ENV1, error(Message)).
+evaluate_rhs(ENV0, access(E1, E2), ENV1, Result) :-
+   evaluate_lhs(ENV0, access(E1, E2), ENV1, Values),
+   (
+      Values = error(_) ->
+      Result = Address;
+      (
+         Values = [referencetype(_, Address), Key],
+         ENV1 = [_, Pool],
+         getObject(Pool, Address, table(Map)),
+         map_get(Map, Key, Value),
+         Result = [Value]
+      )
+   ).
 
 
 
 % Evaluate a variadic expression.
-evaluate_rhs([EC], '...', [EC], error('\'...\' is not defined.')) :-
-   \+'env:keyExists'(EC, '...'), !.
-evaluate_rhs([EC], '...', [EC], [V | VS]) :-
-   'env:keyExists'(EC, '...'),
-   'env:getValue'(EC, '...', [V | VS]), !.
-evaluate_rhs([EC | ECS], '...', [EC | ECS], VS) :-
-   'env:keyExists'(EC, '...'),
-   'env:getValue'(EC, '...', VS),
-   VS \== [], !.
-evaluate_rhs([EC | ECS], '...', [EC | ECS], [niltype(nil)]) :-
-   'env:keyExists'(EC, '...'),
-   'env:getValue'(EC, '...', []), !.
-evaluate_rhs([EC | ECS], '...', [EC | ECS], VS) :-
-   \+'env:keyExists'(EC, '...'),
-   evaluate_rhs(ECS, '...', ECS, VS).
+evaluate_rhs([ContextPath, Pool], '...', [ContextPath, Pool], Result) :-
+   getContext(ContextPath, Pool, context(Map)),
+   (
+      keyExists(context(Map), '...') ->
+      map_get(Map, '...', Result);
+      (
+         path([_ | Indices]) = ContextPath,
+         (
+            Indices \= [] ->
+            (
+               popContext(ContextPath, NewContextPath),
+               evaluate_rhs([NewContextPath, Pool], '...', _, Result)
+            );
+            Result = error('\'...\' is not defined in the execution environment.')
+         )
+      )
+   ).
 
 
 
-% The unary minus operator.
-evaluate_rhs(ENV0, unop(unm, E), ENV1, [numbertype(M)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [numbertype(N) | _]),
-   M is -N, !.
+% The unary minus ('-') operator.
+evaluate_rhs(ENV0, unop(unm, Expression), ENV1, Result) :-
+   evaluate_rhs(ENV0, Expression, ENV1, Values), !,
+   (
+      Values = error(_) ->
+      Result = Values;
+      (
+         Values = [numbertype(N) | _],
+         M is -N,
+         Result = [numbertype(M)]
+      )
+   ).
 
 
 
 % The not operator.
-evaluate_rhs(ENV0, unop(not, E), ENV1, [booleantype(true)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   member(V, [niltype(nil), booleantype(false)]), !.
-evaluate_rhs(ENV0, unop(not, E), ENV1, [booleantype(false)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]), !.
+evaluate_rhs(ENV0, unop(not, Expression), ENV1, Result) :-
+   evaluate_rhs(ENV0, Expression, ENV1, Values), !,
+   (
+      Values = error(_) ->
+      Result = Values;
+      (
+         [Value | _] = Values,
+         (
+            member(Value, [niltype(nil), booleantype(false)]) ->
+            Result = [booleantype(true)];
+            Result = [booleantype(false)]
+         )
+      )
+   ).
 
 
 
-% The length operator.
-evaluate_rhs(ENV0, unop(len, E), ENV1, [numbertype(Size)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [table(M) | _]),
-   'map:size'(M, Size), !.
-evaluate_rhs(ENV0, unop(len, E), ENV1, [numbertype(Size)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [referencetype(table, ECID, K) | _]),
-   'env:getValue'(ENV1, ECID, K, table(M)),
-   'map:size'(M, Size), !.
-evaluate_rhs(ENV0, unop(len, E), ENV1, [numbertype(Size)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [stringtype(S) | _]),
-   atom_length(S, Size), !.
-evaluate_rhs(ENV0, unop(len, E), ENV1, error('\'#\' operand is not a table or string.')) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   \+member(V, [table(_), referencetype(table, _, _), stringtype(_)]), !.
-
-
-
-% Generic error handling for unary operators.
-evaluate_rhs(ENV0, unop(_, E), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+% The length ('#') operator.
+evaluate_rhs(ENV0, unop(len, Expression), ENV1, Result) :-
+   evaluate_rhs(ENV0, Expression, ENV1, Values), !,
+   (
+      Values = error(_) ->
+      Result = Values;
+      (
+         Values = [Value | _],
+         (
+            \+member(Value, [referencetype(table, _), stringtype(_)]) ->
+            Result = error('\'#\' operator requires an operand that is either a table or string.');
+            (
+               Value = referencetype(_, Address) ->
+               (
+                  % Calculate the length of a table.
+                  Value = referencetype(_, Address),
+                  ENV1 = [_, Pool],
+                  getObject(Pool, Address, table(Map)),
+                  map_size(Map, Size),
+                  Result = [numbertype(Size)]
+               );
+               (
+                  % Calculate the length of a string.
+                  Value = stringtype(String),
+                  atom_length(String, Length),
+                  Result = [numbertype(Length)]
+               )
+            )
+         )
+      )
+   ).
 
 
 
@@ -288,19 +454,19 @@ evaluate_rhs(ENV0, binop(pow, E1, E2), ENV2, [numbertype(C)]) :-
 evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   'std:type'(V1, T1),
-   'std:type'(V2, T2),
+   value_type(V1, T1),
+   value_type(V2, T2),
    T1 \= T2, !.
 evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(true)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   'std:rawValue'(V1, RV),
-   'std:rawValue'(V2, RV), !.
+   value_raw(V1, RV),
+   value_raw(V2, RV), !.
 evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   'std:rawValue'(V1, RV1),
-   'std:rawValue'(V2, RV2),
+   value_raw(V1, RV1),
+   value_raw(V2, RV2),
    RV1 \= RV2, !.
 
 
@@ -398,11 +564,11 @@ evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, [stringtype(C)]) :-
    member(V1, [numbertype(_), stringtype(_)]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
    member(V2, [numbertype(_), stringtype(_)]),
-   'std:type'(V1, T1),
-   'std:type'(V2, T2),
+   value_type(V1, T1),
+   value_type(V2, T2),
    T1 \= T2,
-   'std:rawValue'(V1, A),
-   'std:rawValue'(V2, B),
+   value_raw(V1, A),
+   value_raw(V2, B),
    atom_concat(A, B, C), !.
 evaluate_rhs(ENV0, binop(concat, E1, _), ENV1, error('Left operand is not a number or string')) :-
    evaluate_rhs(ENV0, E1, ENV1, [V | _]),
@@ -425,35 +591,53 @@ evaluate_rhs(ENV0, binop(_, E1, E2), ENV2, error(Message)) :-
 
 
 % Evaluate a function definition.
-evaluate_rhs([EC | ECS], functiondef(PS, SS), [EC1 | ECS], [Reference]) :-
-   'env:addObject'(EC, function(PS, SS, []), EC1, Reference).
+evaluate_rhs([ContextPath, Pool], functiondef(PS, SS), ENV, [Reference]) :-
+   objectAllocate([ContextPath, Pool], function(PS, SS, ContextPath), ENV, Reference).
 
 
 
 % Evaluate a function call.
-evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
-   evaluate_rhs(ENV0, E, ENV1, [referencetype(function, ECID, Address) | _]),
-   evaluate_rhs(ENV1, explist(ES), ENV2, VS_es),
-   'env:getValue'(ENV2, ECID, Address, function(PS, SS, [])),
-   'env:addContext'(ENV2, PS, VS_es, ENV3), !,
-   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss), !.
-evaluate_rhs(ENV0, functioncall(E, ES), ENV4, VS_ss) :-
-   evaluate_rhs(ENV0, E, ENV1, [referencetype(function, ECID, Address) | _]),
-   evaluate_rhs(ENV1, explist(ES), ENV2, VS_es),
-   'env:getValue'(ENV2, ECID, Address, function(PS, SS, ENVf)),
-   ENVf \= [],
-   'env:addContext'(ENVf, PS, VS_es, ENV3), !,
-   evaluate_stat(ENV3, statementlist(SS), [_ | ENV4], _, VS_ss), !.
-
-evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Metatables not implemented yet!')) :-
-   evaluate_rhs(ENV0, E, ENV1, [referencetype(table, _, _) | _]), !.
-
-
-evaluate_rhs(ENV0, functioncall(E, _), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)), !.
-evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Expression is not a callable object.')) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   V \= referencetype(_, _, _), !.
+evaluate_rhs(ENV0, functioncall(E, ES), ENVn, Result) :-
+   evaluate_rhs(ENV0, E, ENV1, VS_E),
+   evaluate_rhs(ENV1, expressions(ES), ENV2, VS_ES),
+   (
+      VS_E \= error(_), VS_ES \= error(_) ->
+      (
+         VS_E \= [referencetype(_, _) | _] ->
+         (
+            ENVn = ENV1,
+            Result = error('Expression is not a callable object.')
+         );
+         (
+            [referencetype(Type, Address) | _] = VS_E,
+            (
+               Type = function ->
+               (
+                  ENV2 = [ContextPath, Pool],
+                  ENVn = [ContextPath, NewPool],
+                  getObject(Pool, Address, function(PS, SS, FunctionContextPath)),
+                  pushContext([FunctionContextPath, Pool], PS, VS_ES, ENV3), !,
+                  evaluate_stat(ENV3, statements(SS), [_, NewPool], _, Result)
+               );
+               (
+                  ENVn = ENV1,
+                  Result = error('Metatables are not supported yet.')
+               )
+            )
+         )
+      );
+      (
+         VS_E = error(_) ->
+         (
+            ENVn = ENV1,
+            Result = VS_E
+         );
+         (
+            ENVn = ENV2,
+            Result = VS_ES
+         )
+      )
+   ).
 
 
 
@@ -461,124 +645,227 @@ evaluate_rhs(ENV0, functioncall(E, _), ENV1, error('Expression is not a callable
 % ------------------------------------------------------------------------------
 
 % Evaluate a list of statements.
-evaluate_stat(ENV0, statementlist([]), ENV0, continue, []).
-evaluate_stat(ENV0, statementlist([S | SS]), ENV2, CTRL, VS) :-
-   evaluate_stat(ENV0, S, ENV1, continue, _), !,
-   evaluate_stat(ENV1, statementlist(SS), ENV2, CTRL, VS), !.
-evaluate_stat(ENV0, statementlist([S | _]), ENV1, CTRL, VS) :-
-   evaluate_stat(ENV0, S, ENV1, CTRL, VS),
-   member(CTRL, [return, break, error]).
+evaluate_stat(ENV0, statements(Statements), ENVn, CTRL, Result) :-
+   (
+      Statements = [] ->
+      (
+         ENVn = ENV0,
+         CTRL = continue,
+         Result = []
+      );
+      (
+         Statements = [S | SS],
+         evaluate_stat(ENV0, S, ENV1, CTRL0, Values),
+         (
+            \+member(CTRL0, [return, break, error]) ->
+            evaluate_stat(ENV1, statements(SS), ENVn, CTRL, Result);
+            (
+               ENVn = ENV1,
+               CTRL = CTRL0,
+               Result = Values
+            )
+         )
+      )
+   ).
 
 
 
 % The assignment statement.
-evaluate_stat(ENV0, assign(LHS, RHS), ENV3, continue, []) :-
-   evaluate_lhs(ENV0, explist(LHS), ENV1, VS_lhs),
-   VS_lhs \= error(_),
-   evaluate_rhs(ENV1, explist(RHS), ENV2, VS_rhs),
-   VS_rhs \= error(_), !,
-   'env:setValues'(ENV2, VS_lhs, VS_rhs, ENV3).
-evaluate_stat(ENV0, assign(LHS, _), ENV1, error, error(Message)) :-
-   evaluate_lhs(ENV0, explist(LHS), ENV1, error(Message)), !.
-evaluate_stat(ENV0, assign(LHS, RHS), ENV2, error, error(Message)) :-
-   evaluate_lhs(ENV0, explist(LHS), ENV1, _),
-   evaluate_rhs(ENV1, explist(RHS), ENV2, error(Message)).
+evaluate_stat(ENV0, assign(LHS, RHS), ENVn, CTRL, Result) :-
+   evaluate_lhs(ENV0, expressions(LHS), ENV1, Addresses),
+   evaluate_rhs(ENV1, expressions(RHS), ENV2, Values),
+   (
+      Addresses \= error(_), Values \= error(_) ->
+      (
+         CTRL = continue,
+         Result = [],
+         setValues(ENV2, Addresses, Values, ENVn)
+      );
+      (
+         (
+            Addresses = error(_) ->
+            (
+               Result = Addresses,
+               ENVn = ENV1
+            );
+            (
+               Result = Values,
+               ENVn = ENV2
+            )
+         ),
+         CTRL = error
+      )
+   ).
 
 
 
 % The function statement.
-evaluate_stat(ENV0, functioncall(E, ES), ENV1, continue, []) :-
-   evaluate_rhs(ENV0, functioncall(E, ES), ENV1, VS),
-   VS \= error(_).
-evaluate_stat(ENV0, functioncall(E, ES), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, functioncall(E, ES), ENV1, error(Message)), !.
+evaluate_stat(ENV0, functioncall(E, ES), ENV1, CTRL, Result) :-
+   evaluate_rhs(ENV0, functioncall(E, ES), ENV1, Values),
+   (
+      Values \= error(_) ->
+      (
+         CTRL = continue,
+         Result = []
+      );
+      (
+         CTRL = error,
+         Result = Values
+      )
+   ).
 
 
 
 % The do statement.
-evaluate_stat(ENV0, do(SS), ENV2, CTRL, VS) :-
-   'env:addContext'(ENV0, ENV1),
-   evaluate_stat(ENV1, statementlist(SS), [_ | ENV2], CTRL, VS).
+evaluate_stat(ENV0, do(Statements), ENVn, CTRL, Result) :-
+(
+   Statements = [] ->
+   (
+      ENVn = ENV0,
+      CTRL = continue,
+      Result = []
+   );
+   (
+      pushContext(ENV0, ENV1),
+      evaluate_stat(ENV1, statements(Statements), ENV2, CTRL, Result),
+      popContext(ENV2, ENVn)
+   )
+).
 
 
 
 % The while-do statement.
-evaluate_stat(ENV0, while(E, _), ENV1, continue, []) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   member(V, [niltype(nil), booleantype(false)]), !.
-evaluate_stat(ENV0, while(E, SS), ENV2, continue, []) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ENV1, do(SS), ENV2, break, _), !.
-evaluate_stat(ENV0, while(E, SS), ENV3, CTRL, VS_ss) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]), !,
-   \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ENV1, do(SS), ENV2, continue, _), !,
-   evaluate_stat(ENV2, while(E, SS), ENV3, CTRL, VS_ss), !.
-evaluate_stat(ENV0, while(E, SS), ENV2, CTRL, VS_ss) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ENV1, do(SS), ENV2, CTRL, VS_ss),
-   member(CTRL, [return, error]), !.
-evaluate_stat(ENV0, while(E, _), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_stat(ENV0, while(E, SS), ENVn, CTRL, Result) :-
+   evaluate_rhs(ENV0, E, ENV1, VS_E),
+   (
+      VS_E \= error(_) ->
+      (
+         VS_E = [Condition | _],
+         (
+            member(Condition, [niltype(nil), booleantype(false)]) ->
+            (
+               ENVn = ENV1,
+               CTRL = continue,
+               Result = []
+            );
+            (
+               evaluate_stat(ENV1, do(SS), ENV2, CTRL0, Values),
+               (
+                  CTRL0 = break ->
+                  (
+                     ENVn = ENV2,
+                     CTRL = continue,
+                     Result = []
+                  );
+                  (
+                     CTRL0 = continue ->
+                     evaluate_stat(ENV2, while(E, SS), ENVn, CTRL, Result);
+                     (
+                        member(CTRL0, [return, error]) ->
+                        (
+                           ENVn = ENV2,
+                           CTRL = CTRL0,
+                           Result = Values
+                        );
+                        true
+                     )
+                  )
+               )
+            )
+         )
+      );
+      (
+         ENVn = ENV1,
+         CTRL = error,
+         Result = VS_E
+      )
+   ).
 
 
 
 % The repeat-until statement.
-evaluate_stat(ENV0, repeat(_, SS), ENV2, CTRL, VS) :-
-   'env:addContext'(ENV0, ENV1),
-   evaluate_stat(ENV1, statementlist(SS), [_ | ENV2], CTRL, VS),
-   member(CTRL, [return, error]), !.
-evaluate_stat(ENV0, repeat(_, SS), ENV2, continue, []) :-
-   'env:addContext'(ENV0, ENV1),
-   evaluate_stat(ENV1, statementlist(SS), [_ | ENV2], break, []), !.
-evaluate_stat(ENV0, repeat(E, SS), ENV3, continue, []) :-
-   'env:addContext'(ENV0, ENV1),
-   evaluate_stat(ENV1, statementlist(SS), ENV2, continue, _),
-   evaluate_rhs(ENV2, E, [_ | ENV3], [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]), !.
-evaluate_stat(ENV0, repeat(E, SS), ENV4, CTRL, VS) :-
-   'env:addContext'(ENV0, ENV1),
-   evaluate_stat(ENV1, statementlist(SS), ENV2, continue, _),
-   evaluate_rhs(ENV2, E, [_ | ENV3], [V | _]), !,
-   member(V, [niltype(nil), booleantype(false)]),
-   evaluate_stat(ENV3, repeat(E, SS), ENV4, CTRL, VS), !.
-evaluate_stat(ENV0, repeat(E, SS), ENV3, error, error(Message)) :-
-   'env:addContext'(ENV0, ENV1),
-   evaluate_stat(ENV1, statementlist(SS), ENV2, continue, _),
-   evaluate_rhs(ENV2, E, [_ | ENV3], error(Message)).
+evaluate_stat(ENV0, repeat(E, SS), ENVn, CTRL, Result) :-
+   pushContext(ENV0, ENV1),
+   evaluate_stat(ENV1, statements(SS), ENV2, CTRL0, VS_SS),
+   (
+      member(CTRL0, [return, break, error]) ->
+      (
+         popContext(ENV2, ENVn),
+         (
+            CTRL0 = break ->
+            (
+               CTRL = continue,
+               Result = []
+            );
+            (
+               CTRL = CTRL0,
+               Result = VS_SS
+            )
+         )
+      );
+      (
+         evaluate_rhs(ENV2, E, ENV3, VS_E),
+         (
+            VS_E = error(_) ->
+            (
+               CTRL = error,
+               ENVn = ENV3,
+               Result = VS_E
+            );
+            (
+               popContext(ENV3, ENV4),
+               VS_E = [V | _],
+               (
+                  member(V, [niltype(nil), booleantype(false)]) ->
+                  evaluate_stat(ENV4, repeat(E, SS), ENVn, CTRL, Result);
+                  (
+                     ENVn = ENV4,
+                     CTRL = continue,
+                     Result = []
+                  )
+               )
+            )
+         )
+      )
+   ).
 
 
 
 % If statement.
-evaluate_stat(ENV0, if(E, _, S), ENV2, CTRL, VS) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   member(V, [niltype(nil), booleantype(false)]), !,
-   evaluate_stat(ENV1, S, ENV2, CTRL, VS).
-evaluate_stat(ENV0, if(E, S, _), ENV2, CTRL, VS) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]), !,
-   evaluate_stat(ENV1, S, ENV2, CTRL, VS).
-evaluate_stat(ENV0, if(E, _, _), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_stat(ENV0, if(Expression, Strue, Sfalse), ENV2, CTRL, Result) :-
+   evaluate_rhs(ENV0, Expression, ENV1, Values),
+   (
+      Values = error(_) ->
+      (
+         CTRL = error,
+         Result = Values
+      );
+      (
+         [Condition | _] = Values,
+         (
+            \+member(Condition, [niltype(nil), booleantype(false)]) ->
+            evaluate_stat(ENV1, Strue, ENV2, CTRL, Result);
+            evaluate_stat(ENV1, Sfalse, ENV2, CTRL, Result)
+         )
+      )
+   ).
 
 
 
-evaluate_stat([EC | ECS], localvariable(N, E), [EC2 | ECS1], continue, []) :-
-   evaluate_rhs([EC | ECS], E, [EC1 | ECS1], [V | _]),
-   'env:setValue'(EC1, N, V, EC2), !.
-evaluate_stat(ENV0, localvariable(_, E), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+% Create a variable in the current execution context (scope).
+evaluate_stat([ContextPath, Pool], localvariable(Name), ENV, continue, []) :-
+   setValue([ContextPath, Pool], ContextPath, Name, niltype(nil), ENV).
 
 
 
 % The return statement.
-evaluate_stat(ENV0, return(ES), ENV1, return, VS) :-
-   evaluate_rhs(ENV0, explist(ES), ENV1, VS),
-   VS \= error(_), !.
-evaluate_stat(ENV0, return(ES), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, explist(ES), ENV1, error(Message)).
+evaluate_stat(ENV0, return(Expressions), ENV1, CTRL, Result) :-
+   evaluate_rhs(ENV0, expressions(Expressions), ENV1, Result),
+   (
+      Result \= error(_) ->
+      CTRL = return;
+      CTRL = error
+   ).
 
 
 
@@ -599,9 +886,9 @@ evaluate_stat(ENV0, intrinsic(error, E), ENV1, error, error(Message)) :-
 
 
 % The type statement.
-evaluate_stat(ENV0, intrinsic(type, E), ENV1, return, [type(Type)]) :-
+evaluate_stat(ENV0, intrinsic(type, E), ENV1, return, [stringtype(Type)]) :-
    evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   'std:type'(V, Type), !.
+   value_type(V, Type), !.
 evaluate_stat(ENV0, intrinsic(type, E), ENV1, error, error(Message)) :-
    evaluate_rhs(ENV0, E, ENV1, error(Message)).
 
@@ -613,24 +900,41 @@ evaluate_stat(ENV0, intrinsic(print, _), ENV0, continue, []).
 
 
 % The tonumber statement.
-evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, return, [numbertype(N)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [numbertype(N) | _]), !.
-evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, return, [numbertype(N)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [stringtype(S) | _]),
-   atom_number(S, N), !.
-evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, return, [niltype(nil)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   \+member(V, [numbertype(_), stringtype(_)]), !.
-evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, CTRL, Result) :-
+   evaluate_rhs(ENV0, E, ENV1, Values),
+   (
+      Values \= error(_) ->
+      (
+         CTRL = return,
+         Values = [Value | _],
+         (
+            Value = numbertype(_) ->
+            Result = [Value];
+            (
+               Value = stringtype(_) ->
+               (
+                  Value = stringtype(String),
+                  atom_number(String, Number),
+                  Result = [numbertype(Number)]
+               );
+               Result = [niltype(nil)]
+            )
+         )
+      );
+      (
+         CTRL = error,
+         Result = Values
+      )
+   ).
 
 
 
 % Program evaluation.
 % ------------------------------------------------------------------------------
-'evaluate:chunk'([], _, [], []).
-'evaluate:chunk'(Statements, Arguments, Environment, Result) :-
-   'env:addContext'([], ['...'], Arguments, [context(ECID, M)]),
-   'env:0'(ECID, M0),
-   append(M, M0, M1),
-   evaluate_stat([context(0, M1)], statementlist(Statements), Environment, _, Result).
+evaluate_chunk([], _, [], []).
+evaluate_chunk(Statements, Arguments, Environment, Result, Runtime) :-
+   loadEnvironment(Arguments, ENV0),
+   get_time(T0),
+   evaluate_stat(ENV0, statements(Statements), Environment, _, Result),
+   get_time(T1),
+   Runtime is (T1 - T0).
