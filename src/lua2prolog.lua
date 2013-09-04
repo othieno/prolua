@@ -472,7 +472,36 @@ end
 --    end
 -- end
 convert["Forin"] = function(ASTNode)
-   return "do([])"
+   -- Get variable and expression lists.
+   local variables = ASTNodeToProlog(ASTNode[1])
+   local expressions = ASTNodeToProlog(ASTNode[2])
+
+   -- Store the expression that accesses var_1 because this will be used
+   -- to break the loop.
+   local var_1 = ASTNodeToProlog(ASTNode[1][1])
+
+   -- Instantiation and assignment of local variables.
+   local instantiate = ""
+   local nLocals = #ASTNode[1]
+   for i = 1, nLocals do
+      instantiate = instantiate .. "local" .. ASTNodeToProlog(ASTNode[1][i]) .. ", "
+   end
+   local assign = "assign([" .. variables .. "], [functioncall(variable('f'), " ..
+   "[variable('s'), variable('var')])]), "
+
+   -- Get the instruction block, if it exists.
+   local nodeLength = #ASTNode
+   local block = ""
+   if #ASTNode[nodeLength] > 0 then
+      block = ", " .. ASTNodeToProlog(ASTNode[nodeLength])
+   end
+
+   return
+   "do([localvariable('f'), localvariable('s'), localvariable('var'), " ..
+   "assign([variable('f'), variable('s'), variable('var')], [" .. expressions .. "]), " ..
+   "while(booleantype(true), [" .. instantiate .. assign ..
+   "assign([variable('var')], [" .. var_1 .. "]), " ..
+   "if(binop(eq, variable('var'), niltype(nil)), break, do([]))" .. block .. "])])"
 end
 
 -- Convert an object-oriented call node into Prolog.
@@ -480,7 +509,7 @@ end
 -- The colon operator is nothing more than a syntactic sugar, so this function
 -- returns the string 'functioncall(e, es)', where e is an expression that evaluates
 -- into a function, and es is a list of arguments, with the first item being the
--- caller object.
+-- object that invoked the function call.
 convert["Invoke"] = function(ASTNode)
    local tableName = ASTNodeToProlog(ASTNode[1])
    local functionName = ASTNodeToProlog(ASTNode[2])
