@@ -37,26 +37,6 @@ hex(Decimal, Decimal) :- \+number(Decimal).
 
 
 
-% Value management.
-% ------------------------------------------------------------------------------
-
-% Return the type of a value.
-value_type(niltype(_), 'type:nil').
-value_type(booleantype(_), 'type:boolean').
-value_type(numbertype(_), 'type:number').
-value_type(stringtype(_), 'type:string').
-value_type(referencetype(table, _), 'type:table').
-value_type(referencetype(function, _), 'type:function').
-
-
-% Return the raw value.
-value_raw(niltype(nil), nil).
-value_raw(booleantype(B), B).
-value_raw(numbertype(N), N).
-value_raw(stringtype(S), S).
-value_raw(referencetype(Type, Address), [Type, Address]).
-
-
 % Format values to ease readability.
 value_format(type(T), T) :- !.
 value_format(niltype(nil), nil) :- !.
