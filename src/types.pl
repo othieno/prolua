@@ -133,16 +133,17 @@ dag_setNode(graph(RootNodes), path([NodeIndex | Indices]), NewNode, graph(NewRoo
 ).
 
 
-% Count the number of nodes in the graph.                                                             FIXME
-dag_countNodes(graph(RootNodes), Count) :-
+% Count the number of nodes in the graph.
+dag_countNodes(graph(RootNodes), NumberOfNodes) :-
 (
    RootNodes = [] ->
-   Count = 0;
+   NumberOfNodes = 0;
    (
-      [Node | Nodes] = RootNodes,
-      dag_countNodes(Node, A),
-      dag_countNodes(graph(Nodes), B),
-      Count is 1000 + A + B
+      RootNodes = [node(_, Children) | Nodes],
+      dag_countNodes(graph(Children), NumberOfChildren),
+      dag_countNodes(graph(Nodes), NumberOfNodesInSubgraph),
+
+      % +1 to include the parent node in the count.
+      NumberOfNodes is (1 + NumberOfChildren) + NumberOfNodesInSubgraph
    )
 ).
-dag_countNodes(node(_, _), 1).

@@ -105,7 +105,15 @@ value_format(map([[K, V] | VS]), Output) :-
 value_format(graph(Graph), Output) :-
    !,
    dag_countNodes(graph(Graph), NumberOfNodes),
-   format(atom(Output), 'Execution context graph with ~w nodes.', [NumberOfNodes]).
+   (
+      NumberOfNodes > 1 ->
+      format(atom(Output), 'Execution context graph with ~w nodes.', [NumberOfNodes]);
+      (
+         NumberOfNodes = 1 ->
+         format(atom(Output), 'Execution context graph with 1 node.', []);
+         format(atom(Output), 'Empty execution context graph.', [])
+      )
+   ).
 
 value_format(Input, Input) :- !.
 
