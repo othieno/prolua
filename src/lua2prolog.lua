@@ -288,7 +288,7 @@ end
 -- variable('y'), variable('z')], [numbertype(1), numbertype(2), numbertype(3)])"
 convert["Local"] = function(ASTNode)
    local instantiate = ""
-   local assign = "assign(["
+   local assign = ", assign(["
 
    -- Get variables.
    for i = 1, #ASTNode[1] do
@@ -296,17 +296,24 @@ convert["Local"] = function(ASTNode)
       instantiate = instantiate .. "local" .. output .. ", "
       assign = assign .. output .. ", "
    end
-   assign = assign:sub(1, string.len(assign) - 2) .. "], ["
+   instantiate = instantiate:sub(1, string.len(instantiate) - 2)
 
-   -- Get values.
-   for i = 1, #ASTNode[2] do
-      assign = assign .. ASTNodeToProlog(ASTNode[2][i]) .. ", "
+   -- Get values. Note that if no assignment is made, then the values are
+   -- initialised with 'nil'.
+   local nValues = #ASTNode[2]
+   if nValues < 1 then
+      -- Return the instantiation only.
+      return instantiate
+   else
+      assign = assign:sub(1, string.len(assign) - 2) .. "], ["
+      for i = 1, nValues do
+         assign = assign .. ASTNodeToProlog(ASTNode[2][i]) .. ", "
+      end
+      assign = assign:sub(1, string.len(assign) - 2) .. "])"
+
+      -- Return the instantiation and assignment.
+      return instantiate .. assign
    end
-   assign = assign:sub(1, string.len(assign) - 2) .. "])"
-
-
-   -- Return the complete string.
-   return instantiate .. assign
 end
 
 -- Convert an operator node into Prolog.
