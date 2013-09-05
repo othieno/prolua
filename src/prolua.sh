@@ -30,31 +30,52 @@ then
    exit 1
 fi
 
-# Make sure the input is a valid Lua program. This runs the Lua interpreter on
-# the input code and checks the exit status upon completion. If the exit status
-# is not zero, then the input is not a valid Lua program.
-lua "$1" &> /dev/null
-if [ $? -gt 0 ]
+# Check for dependencies.
+LUA=$(type -P lua5.1)
+if [ -z "$LUA" ]
 then
-   echo "% Error! '$1' is not a valid Lua program."
+   echo "Could not find any Lua 5.1 interpreters. Check to make sure it's installed and in the PATH."
    exit 1
 fi
 
-# A randomly generated name for our output file and a cleanup function to delete
-# it when the script is done.
-LUA_OUTPUT="/tmp/prolua.$$.output"
+SWIPL=$(type -P swipl)
+if [ -z "$SWIPL" ]
+then
+   echo "Could not find the SWI-Prolog executable. Check to make sure it's installed and in the PATH."
+   exit 2
+fi
+
+
+# Collect the Lua program and its command line arguments.
+LUA_PROGRAM="$1"
+LUA_PROGRAM_ARGS="${*:2}"
+
+
+# Make sure the input is a valid Lua program. This runs the Lua interpreter on
+# the input code and checks the exit status upon completion. If the exit status
+# is not zero, then the input is assumed to be an invalid Lua program.
+$LUA $LUA_PROGRAM $LUA_PROGRAM_ARGS &> /dev/null
+if [ $? -gt 0 ]
+then
+   echo "% Error! '$LUA_PROGRAM' did not run successfully. Either it requires runtime arguments or is an invalid Lua program."
+   exit 3
+fi
+
+# Generate a random filename for lua2prolog's output. Then define a cleanup function to delete
+# it when the script is done or interrupted.
+LUA2PROLOG_OUTPUT_FILE="/tmp/prolua.$$.output"
 function clean()
 {
-   if [[ -e "$LUA_OUTPUT" ]]
+   if [[ -e "$LUA2PROLOG_OUTPUT_FILE" ]]
    then
-      rm "$LUA_OUTPUT"
+      rm "$LUA2PROLOG_OUTPUT_FILE"
    fi
 }
 trap clean INT TERM EXIT
 
 # Convert the Lua source code into prolog and store it in the output file, then
 # pass the output file to prolua to be interpreted.
-lua lua2prolog.lua "$1" ${*:2} > $LUA_OUTPUT
-swipl -q -f main.pl -g main -- $LUA_OUTPUT
+$LUA lua2prolog.lua "$1" ${*:2} > $LUA2PROLOG_OUTPUT_FILE
+$SWIPL -q -f main.pl -g main -- $LUA2PROLOG_OUTPUT_FILE
 
 exit 0
