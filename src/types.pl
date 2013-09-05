@@ -97,6 +97,27 @@ map_keyExists([[K, _] | M], K1) :-
    map_keyExists(M, K1).
 
 
+% Get the next field from the given key.
+map_next(Map, Key, Entry) :-
+(
+   Map = [] ->
+   Entry = niltype(nil);
+   (
+      Map = [[FieldKey, _] | Fields],
+      (
+         Key \= FieldKey ->
+         map_next(Fields, Key, Entry);
+         (
+            % If there're no more entries in the map, return nil.
+            Fields = [] ->
+            Entry = niltype(nil);
+            Fields = [Entry | _]
+         )
+      )
+   )
+).
+
+
 % Return the number of entries in the map.
 map_size([], 0).
 map_size([[_, _] | M], Size) :-

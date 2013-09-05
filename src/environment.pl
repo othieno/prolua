@@ -31,16 +31,22 @@ loadEnvironment(Arguments, [ContextPath, Pool]) :-
       ['type', referencetype(function, '0x1')],
       ['print', referencetype(function, '0x2')],
       ['error', referencetype(function, '0x3')],
-      ['tonumber', referencetype(function, '0x4')]
+      ['tonumber', referencetype(function, '0x4')],
+      ['ipairs', referencetype(function, '0x5')],
+      ['pairs', referencetype(function, '0x6')],
+      ['next', referencetype(function, '0x7')]
    ]),
    ContextPath = path([1]),
-   Pool = pool(5,
+   Pool = pool(8,
    [
       ['0x0', 1, graph([node(Context, [])])],
       ['0x1', 1, function(['value'], [intrinsic(type, variable('value'))], ContextPath)],
       ['0x2', 1, function(['output'], [intrinsic(print, variable('output'))], ContextPath)],
       ['0x3', 1, function(['error'], [intrinsic(error, variable('error'))], ContextPath)],
-      ['0x4', 1, function(['value'], [intrinsic(tonumber, variable('value'))], ContextPath)]
+      ['0x4', 1, function(['value'], [intrinsic(tonumber, variable('value'))], ContextPath)],
+      ['0x5', 1, function(['table'], [intrinsic(ipairs, variable('table'))], ContextPath)],
+      ['0x6', 1, function(['table'], [intrinsic(pairs, variable('table'))], ContextPath)],
+      ['0x7', 1, function(['table', 'index'], [intrinsic(next, variable('table'), variable('index'))], ContextPath)]
    ]).
 
 
