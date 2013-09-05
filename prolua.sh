@@ -75,7 +75,9 @@ trap clean INT TERM EXIT
 
 # Convert the Lua source code into prolog and store it in the output file, then
 # pass the output file to prolua to be interpreted.
-$LUA lua2prolog.lua "$1" ${*:2} > $LUA2PROLOG_OUTPUT_FILE
+SRC_DIRECTORY="src"
+cd "$SRC_DIRECTORY"
+$LUA lua2prolog.lua "../$LUA_PROGRAM" $LUA_PROGRAM_ARGS > $LUA2PROLOG_OUTPUT_FILE
 $SWIPL -q -f main.pl -g main -- $LUA2PROLOG_OUTPUT_FILE
 
 exit 0
