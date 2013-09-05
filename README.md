@@ -2,33 +2,35 @@ PROLUA
 ======
 
 Prolua is a simple [Lua](http://www.lua.org/) 5.1 interpreter written in [Prolog](http://en.wikipedia.org/wiki/Prolog).
-Check out the [__documentation__](https://github.com/supranove/prolua/raw/master/implementation.pdf) for more details.
+Check out the [__documentation__](https://github.com/supranove/prolua/raw/master/implementation.pdf) [PDF] for more details.
 
 
 Requirements
 ------------
-Prolua requires [SWI-Prolog](http://www.swi-prolog.org/Download.html) to be able to execute
-the interpreter. Support for more Prolog compilers is on the TODO list.
+Prolua requires [__SWI-Prolog__](http://www.swi-prolog.org/Download.html). Additionally, Prolua requires a Lua interpreter
+that implements the [__5.1 specification__](http://www.lua.org/manual/5.1/), a current version of which can be found [__here__](http://www.lua.org/versions.html#5.1).
 
-[Lua 5.1 or later](http://www.lua.org/download.html) is required to run __lua2prolog__.
+Prolua has not been tested with Lua programs that adhere to the 5.0 specification or less and as such, I cannot guarantee they 
+will work in Prolua. Since Prolua currently implements the 5.1 specification, Lua programs using features introduced in
+5.2 and later will not work.
 
 
 Execution
 ---------
-To run the interpreter, simply execute the __run.sh__ script from a terminal. The script takes
-__one argument__ which is name of the file containing the Lua source code to interpret.
-An execution would look like
+To run the interpreter, simply execute the __prolua.sh__ script from a terminal. The script takes __one or more arguments__
+with the first being the name of the Lua program to interpret, and the rest being command line arguments passed to the Lua program.
+An example execution would be
 
 ```bash
-./run.sh helloworld.lua
+./prolua.sh printargs.lua hello world
 ```
 
-Note that this code is tested under Debian GNU/Linux and __the run.sh script was written to work
-with bash__. This means that it won't work under Windows but should, theoretically, work under Mac OS.
+Prolua is developed under Debian GNU/Linux and __the prolua.sh script is written to work with bash__. This means
+that it won't work under Windows but should, theoretically, work under any Unix-like system.
 
 
 Layout
 ------
 The folders provided with this software are structured in the following manner
-* __samples__ contains sample Lua source code files used to test the interpreter.
+* __samples__ contains sample Lua source code files used to test Prolua.
 * __src__ contains the source code tree.
