@@ -728,7 +728,11 @@ evaluate_stat(ENV0, do(Statements), ENVn, CTRL, Result) :-
    (
       pushContext(ENV0, ENV1),
       evaluate_stat(ENV1, statements(Statements), ENV2, CTRL, Result),
-      popContext(ENV2, ENVn)
+      (
+         member(CTRL, [return, error]) ->
+         ENVn = ENV2;
+         popContext(ENV2, ENVn)
+      )
    )
 ).
 
