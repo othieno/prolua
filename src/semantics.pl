@@ -143,7 +143,7 @@ evaluate_rhs(ENV0, expressions(Expressions), ENVn, Result) :-
             (
                ES = [] ->
                (
-                  VS_E = [] ->
+                  VS_E = [niltype(nil)] ->
                   Result = [];
                   Result = VS_E
                );
@@ -319,7 +319,14 @@ evaluate_rhs([ContextPath, Pool], '...', [ContextPath, Pool], Result) :-
    getContext(ContextPath, Pool, context(Map)),
    (
       keyExists(context(Map), '...') ->
-      map_get(Map, '...', Result);
+      (
+         map_get(Map, '...', Values),
+         (
+            Values = niltype(nil) ->
+            Result = [Values];
+            Result = Values
+         )
+      );
       (
          path([_ | Indices]) = ContextPath,
          (

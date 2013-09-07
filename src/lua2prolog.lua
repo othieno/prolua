@@ -595,11 +595,13 @@ local mlp = assert(_G.mlp)
 print("chunk([" .. ASTNodeToProlog(mlp.chunk(mlp.lexer:newstream(input))) .. "]).")
 
 -- Create command line arguments.
-local arguments = ""
-for i = 2, #arg do
-   arguments = arguments .. toStringType(arg[i])
-   if (i < #arg) then
-      arguments = arguments .. ", "
+local nArguments = #arg
+if nArguments > 1 then
+   local arguments = ""
+   for i = 2, nArguments do
+      arguments = arguments .. toStringType(arg[i]) .. ", "
    end
+   print("arguments([" .. arguments:sub(1, string.len(arguments) - 2) .. "]).")
+else
+   print("arguments(niltype(nil)).")
 end
-print("arguments([" .. arguments .. "]).")
