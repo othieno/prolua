@@ -34,10 +34,12 @@ loadEnvironment(Arguments, [ContextPath, Pool]) :-
       ['tonumber', referencetype(function, '0x4')],
       ['ipairs', referencetype(function, '0x5')],
       ['pairs', referencetype(function, '0x6')],
-      ['next', referencetype(function, '0x7')]
+      ['next', referencetype(function, '0x7')],
+      ['getmetatable', referencetype(function, '0x8')],
+      ['setmetatable', referencetype(function, '0x9')]
    ]),
    ContextPath = path([1]),
-   Pool = pool(8,
+   Pool = pool(10,
    [
       ['0x0', 1, graph([node(Context, [])])],
       ['0x1', 1, function(['value'], [intrinsic(type, variable('value'))], ContextPath)],
@@ -46,7 +48,9 @@ loadEnvironment(Arguments, [ContextPath, Pool]) :-
       ['0x4', 1, function(['value'], [intrinsic(tonumber, variable('value'))], ContextPath)],
       ['0x5', 1, function(['table'], [intrinsic(ipairs, variable('table'))], ContextPath)],
       ['0x6', 1, function(['table'], [intrinsic(pairs, variable('table'))], ContextPath)],
-      ['0x7', 1, function(['table', 'index'], [intrinsic(next, variable('table'), variable('index'))], ContextPath)]
+      ['0x7', 1, function(['table', 'index'], [intrinsic(next, variable('table'), variable('index'))], ContextPath)],
+      ['0x8', 1, function(['table'], [intrinsic(getmetatable, variable('table'))], ContextPath)],
+      ['0x9', 1, function(['table', 'metatable'], [intrinsic(setmetatable, variable('table'), variable('metatable'))], ContextPath)]
    ]).
 
 
