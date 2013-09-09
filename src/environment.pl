@@ -122,9 +122,9 @@ setValue([ContextPath, OldPool], Locator, Key, Value, [ContextPath, NewPool]) :-
    );
    (
       Locator = referencetype(_, Address),
-      getObject(OldPool, Address, table(Map)),
+      getObject(OldPool, Address, table(Map, Metatable)),
       map_set(Map, Key, Value, NewMap),
-      setObject(OldPool, Address, table(NewMap), NewPool)
+      setObject(OldPool, Address, table(NewMap, Metatable), NewPool)
    )
 ).
 
@@ -156,7 +156,7 @@ objectAllocate(pool(OFF0, MEM0), Object, pool(OFF1, MEM1), referencetype(Type, A
    OFF1 is OFF0 + 1,
    append(MEM0, [[Address, 1, Object]], MEM1),
    (
-      Object = table(_) ->
+      Object = table(_, _) ->
       Type = table;
       Type = function
    ).

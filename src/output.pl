@@ -54,10 +54,14 @@ value_format(function(PS, _, path(Indices)), Output) :-
    value_format(PS, FPS),
    format(atom(Output), '<function(~w), ~w>', [FPS, Indices]).
 
-value_format(table(FS), Output) :-
+value_format(table(FS, MT), Output) :-
    !,
    value_format(map(FS), FFS),
-   format(atom(Output), '{~w}', [FFS]).
+   (
+      MT = referencetype(_, Address) ->
+      format(atom(Output), '{~w} | metatable: ~w', [FFS, Address]);
+      format(atom(Output), '{~w}', [FFS])
+   ).
 
 value_format([], '') :- !.
 value_format([Value], Output) :-

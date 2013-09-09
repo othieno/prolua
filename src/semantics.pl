@@ -234,7 +234,7 @@ evaluate_rhs(ENV0, tableconstructor(Constructor), ENVn, Result) :-
    % Create an empty table.
    Constructor = [] ->
    (
-      objectAllocate(ENV0, table([]), ENVn, Reference),
+      objectAllocate(ENV0, table([], niltype(nil)), ENVn, Reference),
       Result = [Reference]
    );
    (
@@ -246,7 +246,7 @@ evaluate_rhs(ENV0, tableconstructor(Constructor), ENVn, Result) :-
             Map = error(_) ->
             Result = Map;
             (
-               objectAllocate(ENV1, table(Map), ENVn, Reference),
+               objectAllocate(ENV1, table(Map, niltype(nil)), ENVn, Reference),
                Result = [Reference]
             )
          )
@@ -261,7 +261,7 @@ evaluate_rhs(ENV0, tableconstructor(Constructor), ENVn, Result) :-
                Result = Values;
                (
                   map_build(Values, Map),
-                  objectAllocate(ENV1, table(Map), ENVn, Reference),
+                  objectAllocate(ENV1, table(Map, niltype(nil)), ENVn, Reference),
                   Result = [Reference]
                )
             )
@@ -306,7 +306,7 @@ evaluate_rhs(ENV0, access(E1, E2), ENV1, Result) :-
       (
          Values = [referencetype(_, Address), Key],
          ENV1 = [_, Pool],
-         getObject(Pool, Address, table(Map)),
+         getObject(Pool, Address, table(Map, _)),
          map_get(Map, Key, Value),
          Result = [Value]
       )
@@ -392,7 +392,7 @@ evaluate_rhs(ENV0, unop(len, Expression), ENV1, Result) :-
                   % Calculate the length of a table.
                   Value = referencetype(_, Address),
                   ENV1 = [_, Pool],
-                  getObject(Pool, Address, table(Map)),
+                  getObject(Pool, Address, table(Map, _)),
                   map_size(Map, Size),
                   Result = [numbertype(Size)]
                );
@@ -953,7 +953,7 @@ evaluate_stat(ENV0, intrinsic(next, E1, E2), ENVn, CTRL, Result) :-
             VS_E1 = [referencetype(_, Address) | _],
             VS_E2 = [Key | _],
             ENV2 = [_, Pool],
-            getObject(Pool, Address, table(Map)),
+            getObject(Pool, Address, table(Map, _)),
             (
                % An empty map has no entries, so it always returns nil.
                Map = [] ->

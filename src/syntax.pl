@@ -104,7 +104,7 @@ fields([[Key, Value] | Fields]) :-
    field(Key, Value),
    fields(Fields), !.
 
-table(Fields) :-
+table(Fields, _) :-
    fields(Fields), !.
 
 
