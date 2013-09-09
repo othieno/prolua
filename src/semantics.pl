@@ -1050,7 +1050,6 @@ evaluate_stat(ENV0, intrinsic(getmetatable, EXP), ENV1, CTRL, Result) :-
 
 
 
-
 % The setmetatable function assigns a metatable to a given table.
 evaluate_stat(ENV0, intrinsic(setmetatable, EXP1, EXP2), ENVn, CTRL, Result) :-
    evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
@@ -1102,6 +1101,76 @@ evaluate_stat(ENV0, intrinsic(setmetatable, EXP1, EXP2), ENVn, CTRL, Result) :-
                )
             )
          )
+      )
+   ).
+
+
+
+% The rawget function returns the value of table[index] without invoking any metamethod.
+evaluate_stat(ENV0, intrinsic(rawget, EXP1, EXP2), ENVn, CTRL, Result) :-
+   evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
+   evaluate_rhs(ENV1, EXP2, ENV2, VS_EXP2),
+   (
+      VS_EXP1 = [referencetype(table, _) | _], VS_EXP2 \= error(_) ->
+      (
+         VS_EXP1 = [referencetype(_, Address) | _],
+         VS_EXP2 = [Key | _],
+         ENV2 = [_, Pool],
+         getObject(Pool, Address, table(Map, _)),
+         map_get(Map, Key, Value),
+         CTRL = return,
+         ENVn = ENV2,
+         Result = [Value]
+      );
+      (
+         CTRL = error,
+         (
+            VS_EXP2 = error(_) ->
+            (
+               ENVn = ENV2,
+               Result = VS_EXP2
+            );
+            (
+               ENVn = ENV1,
+               (
+                  VS_EXP1 = error(_) ->
+                  Result = VS_EXP1;
+                  Result = error('\'rawget\' requires a table as its left operand.')
+               )
+            )
+         )
+      )
+   ).
+
+
+
+% The rawset function sets the value of table[index] without invoking any metamethod.
+evaluate_stat(ENV0, intrinsic(rawset, EXP1, EXP2, EXP3), ENVn, CTRL, Result) :-
+   evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
+   evaluate_rhs(ENV1, EXP2, ENV2, VS_EXP2),
+   evaluate_rhs(ENV2, EXP3, ENV3, VS_EXP3),
+   (
+      VS_EXP1 = [referencetype(table, _) | _],
+      \+member(VS_EXP2, [error(_), [niltype(nil) | _]]),
+      VS_EXP3 \= error(_) ->
+      (
+         VS_EXP1 = [referencetype(_, Address) | _],
+         VS_EXP2 = [Key | _],
+         VS_EXP3 = [Value | _],
+
+         % Update the table.
+         ENV2 = [Stack, Pool],
+         getObject(Pool, Address, table(OldMap, MetatableAddress)),
+         map_set(OldMap, Key, Value, NewMap),
+         setObject(Pool, Address, table(NewMap, MetatableAddress), NewPool),
+         ENVn = [Stack, NewPool],
+         CTRL = return,
+         Result = VS_EXP1
+      );
+      (
+         CTRL = error,                                                                                % FIXME
+         ENVn = ENV0,
+         Result = error('TO IMPLEMENT')
       )
    ).
 
