@@ -39,10 +39,11 @@ main :-
 
 /*
  * Evaluate a list of statements. Before we can evaluate the statements, the
- * 'standard' and 'syntax' knowledge bases are loaded and the input program is
- * checked for syntactic correctness. If it is, the 'semantics' knowledge base
- * is loaded and the program is evaluated. When evaluation is completed, the
- * execution environment, any results, as well as runtime statistics are printed.
+ * 'output' and 'syntax' knowledge bases are loaded and the input program is
+ * checked for syntactic correctness. If it is, the 'types', 'environment'
+ * and 'semantics' knowledge bases are loaded and the program is evaluated.
+ * When evaluation is completed, the execution environment, return values if any,
+ * as well as runtime statistics are printed.
  */
 main(Statements, CommandLineArguments) :-
    consult('output.pl'),
