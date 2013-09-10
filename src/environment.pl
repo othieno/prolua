@@ -211,3 +211,52 @@ setObject(pool(Offset, Memory), Address, Value, pool(Offset, NewMemory)) :-
       )
    )
 ).
+
+
+
+% Return the metamethod of a given table. Note that this predicate takes the
+% address of a table that may or may not have a metatable attached to it, and
+% not the address of the metatable where the metamethod is defined.
+getmetamethod([_, Pool], TableAddress, MetamethodName, Metamethod) :-
+   getObject(Pool, TableAddress, Object),
+   (
+      Object \= table(_, referencetype(table, _)) ->
+      Metamethod = niltype(nil);
+      (
+         Object = table(_, referencetype(table, MetatableAddress)),
+         getObject(Pool, MetatableAddress, Metatable),
+         (
+            Metatable \= table(_, _) ->
+            Metamethod = niltype(nil);
+            (
+               % A metatable was found. But does it have the metamethod?
+               Metatable = table(Map, _),
+               map_get(Map, stringtype(MetamethodName), Metamethod)
+            )
+         )
+      )
+   ).
+
+
+% Call a metamethod.
+callmetamethod(ENV0, Address, MetamethodName, Arguments, ENVn, Result) :-
+   getmetamethod(ENV0, Address, MetamethodName, MetamethodReference),
+   (
+      MetamethodReference \= referencetype(function, _) ->
+      (
+         % No metamethod with the given name has been set.
+         ENVn = ENV0,
+         format(atom(Message), 'The \'~w\' metamethod is not defined for table:~w.', [MetamethodName, Address]),
+         Result = error(Message)
+      );
+      (
+         MetamethodReference = referencetype(function, MetamethodAddress),
+         ENV0 = [ContextPath, Pool],
+         ENVn = [ContextPath, NewPool],
+
+         getObject(Pool, MetamethodAddress, function(PS, SS, FunctionContextPath)),
+         pushContext([FunctionContextPath, Pool], PS, Arguments, ENV1), !,
+         evaluate_stat(ENV1, statements(SS), ENV2, _, Result),
+         popContext(ENV2, [_, NewPool])
+      )
+   ).

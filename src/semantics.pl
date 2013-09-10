@@ -614,17 +614,19 @@ evaluate_rhs(ENV0, functioncall(E, ES), ENVn, Result) :-
          (
             [referencetype(Type, Address) | _] = VS_E,
             (
-               Type = function ->
+               Type = table ->
+               (
+                  % Prepend the calling object to the list of arguments passed to the metamethod.
+                  MetamethodArguments = [referencetype(Type, Address) | VS_ES],
+                  callmetamethod(ENV2, Address, '__call', MetamethodArguments, ENVn, Result)
+               );
                (
                   ENV2 = [ContextPath, Pool],
                   ENVn = [ContextPath, NewPool],
                   getObject(Pool, Address, function(PS, SS, FunctionContextPath)),
                   pushContext([FunctionContextPath, Pool], PS, VS_ES, ENV3), !,
-                  evaluate_stat(ENV3, statements(SS), [_, NewPool], _, Result)
-               );
-               (
-                  ENVn = ENV1,
-                  Result = error('Metatables are not supported yet.')
+                  evaluate_stat(ENV3, statements(SS), ENV4, _, Result),
+                  popContext(ENV4, [_, NewPool])
                )
             )
          )
@@ -1059,10 +1061,10 @@ evaluate_stat(ENV0, intrinsic(setmetatable, EXP1, EXP2), ENVn, CTRL, Result) :-
       (
          VS_EXP1 = [referencetype(_, TableAddress)],
          VS_EXP2 = [MetatableReference | _],
-         ENV2 = [Stack, Pool],
+         ENV2 = [ContextPath, Pool],
          getObject(Pool, TableAddress, table(Map, _)),
          setObject(Pool, TableAddress, table(Map, MetatableReference), NewPool),
-         ENVn = [Stack, NewPool],
+         ENVn = [ContextPath, NewPool],
          CTRL = return,
          Result = VS_EXP1
       );
@@ -1159,11 +1161,11 @@ evaluate_stat(ENV0, intrinsic(rawset, EXP1, EXP2, EXP3), ENVn, CTRL, Result) :-
          VS_EXP3 = [Value | _],
 
          % Update the table.
-         ENV2 = [Stack, Pool],
+         ENV2 = [ContextPath, Pool],
          getObject(Pool, Address, table(OldMap, MetatableAddress)),
          map_set(OldMap, Key, Value, NewMap),
          setObject(Pool, Address, table(NewMap, MetatableAddress), NewPool),
-         ENVn = [Stack, NewPool],
+         ENVn = [ContextPath, NewPool],
          CTRL = return,
          Result = VS_EXP1
       );
