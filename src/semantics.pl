@@ -1168,9 +1168,36 @@ evaluate_stat(ENV0, intrinsic(rawset, EXP1, EXP2, EXP3), ENVn, CTRL, Result) :-
          Result = VS_EXP1
       );
       (
-         CTRL = error,                                                                                % FIXME
-         ENVn = ENV0,
-         Result = error('TO IMPLEMENT')
+         CTRL = error,
+         (
+            % The first operand is not a table.
+            VS_EXP1 \= [referencetype(table, _) | _] ->
+            (
+               ENVn = ENV1,
+               (
+                  VS_EXP1 = error(_) ->
+                  Result = VS_EXP1;
+                  Result = error('\'rawset\' requires a table as its first operand.')
+               )
+            );
+            (
+               % The third operand is an error.
+               VS_EXP3 = error(_) ->
+               (
+                  ENVn = ENV3,
+                  Result = VS_EXP3
+               );
+               (
+                  % The second operand is not an accepted key.
+                  ENVn = ENV2,
+                  (
+                     VS_EXP2 = error(_) ->
+                     Result = VS_EXP2;
+                     Result = error('\'rawset\' requires a key that is not nil.')
+                  )
+               )
+            )
+         )
       )
    ).
 
