@@ -260,3 +260,24 @@ callmetamethod(ENV0, Address, MetamethodName, Arguments, ENVn, Result) :-
          popContext(ENV2, [_, NewPool])
       )
    ).
+
+
+
+% Choose a handler for the binary operation (as described in the Lua 5.1 documentation).
+getbinhandler(ENV, Address1, Address2, MetamethodName, MetamethodReference) :-
+   getmetamethod(ENV, Address1, MetamethodName, MetamethodReference1),
+   (
+      MetamethodReference1 \= niltype(nil) ->
+      MetamethodReference = MetamethodReference1;
+      getmetamethod(ENV, Address2, MetamethodName, MetamethodReference)
+   ).
+
+
+
+% Primitive binary arithmetic operators.
+arithmetic_op(add, A, B, C) :- C is A + B.
+arithmetic_op(sub, A, B, C) :- C is A - B.
+arithmetic_op(mul, A, B, C) :- C is A * B.
+arithmetic_op(div, A, B, C) :- C is A / B.
+arithmetic_op(mod, A, B, C) :- C is A mod B.
+arithmetic_op(pow, A, B, C) :- C is A ** B.

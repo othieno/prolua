@@ -442,51 +442,90 @@ evaluate_rhs(ENV0, unop(len, Expression), ENV1, Result) :-
 
 
 
-% The addition operator.
-evaluate_rhs(ENV0, binop(add, E1, E2), ENV2, [numbertype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   C is A + B, !.
+% Binary arithmetic operators.
+evaluate_rhs(ENV0, binop(Operator, E1, E2), ENVn, Result) :-
+   member(Operator, [add, sub, mul, div, mod, pow]),
+   !,
+   evaluate_rhs(ENV0, E1, ENV1, VS_E1),
+   evaluate_rhs(ENV1, E2, ENV2, VS_E2),
+   (
+      VS_E1 \= error(_), VS_E2 \= error(_) ->
+      (
+         VS_E1 = [V1 | _],
+         VS_E2 = [V2 | _],
+         evaluate_stat(ENV2, intrinsic(tonumber, V1), ENV3, CTRL1, NV1),
+         evaluate_stat(ENV3, intrinsic(tonumber, V2), ENV4, CTRL2, NV2),
+         (
+            CTRL1 \= error, CTRL2 \= error ->
+            (
+               % If both operands are numeric, then return the result of a
+               % primitive operation between the two numbers.
+               NV1 = [numbertype(_) | _], NV2 = [numbertype(_) | _] ->
+               (
+                  NV1 = [numbertype(A) | _],
+                  NV2 = [numbertype(B) | _],
+                  arithmetic_op(Operator, A, B, C),
+                  ENVn = ENV4,
+                  Result = [numbertype(C)]
+               );
+               (
+                  % Find the metamethod to call.
+                  atom_concat('__', Operator, MetamethodName),
+                  V1 = referencetype(_, ADDR1),
+                  V2 = referencetype(_, ADDR2),
+                  getbinhandler(ENV4, ADDR1, ADDR2, MetamethodName, MetamethodReference),
+                  (
+                     MetamethodReference = referencetype(function, _) ->
+                     (
+                        MetamethodReference = referencetype(function, MetamethodAddress),
+                        ENV4 = [ContextPath, Pool],
+                        ENVn = [ContextPath, NewPool],
 
-
-
-% The subtraction operator.
-evaluate_rhs(ENV0, binop(sub, E1, E2), ENV2, [numbertype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   C is A - B, !.
-
-
-
-% The multiplication operator.
-evaluate_rhs(ENV0, binop(mul, E1, E2), ENV2, [numbertype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   C is A * B, !.
-
-
-
-% The division operator.
-evaluate_rhs(ENV0, binop(div, E1, E2), ENV2, [numbertype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   C is A / B, !.
-
-
-
-% The modulo operator.
-evaluate_rhs(ENV0, binop(mod, E1, E2), ENV2, [numbertype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   C is A mod B, !.
-
-
-
-% The exponent operator.
-evaluate_rhs(ENV0, binop(pow, E1, E2), ENV2, [numbertype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   C is A ** B, !.
+                        getObject(Pool, MetamethodAddress, function(PS, SS, FunctionContextPath)),
+                        pushContext([FunctionContextPath, Pool], PS, [V1, V2], ENV5), !,
+                        evaluate_stat(ENV5, statements(SS), ENV6, _, Result),
+                        popContext(ENV6, [_, NewPool])
+                     );
+                     (
+                        % The metamethod was not defined so we return an error.
+                        ENVn = ENV4,
+                        Result = error(Message),
+                        (
+                           ADDR1 \= ADDR2 ->
+                           format(atom(Message), 'The \'~w\' metamethod is not defined for table:~w or table:~w.', [MetamethodName, ADDR1, ADDR2]);
+                           format(atom(Message), 'The \'~w\' metamethod is not defined for table:~w.', [MetamethodName, ADDR1])
+                        )
+                     )
+                  )
+               )
+            );
+            (
+               % One of the values evaluated into an error.
+               CTRL1 = error ->
+               (
+                  ENVn = ENV3,
+                  Result = NV1
+               );
+               (
+                  ENVn = ENV4,
+                  Result = NV2
+               )
+            )
+         )
+      );
+      (
+         % One of the expressions evaluated into an error.
+         VS_E1 = error(_) ->
+         (
+            ENVn = ENV1,
+            Result = VS_E1
+         );
+         (
+            ENVn = ENV2,
+            Result = VS_E2
+         )
+      )
+   ).
 
 
 
