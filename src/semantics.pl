@@ -339,15 +339,52 @@ evaluate_rhs([ContextPath, Pool], '...', [ContextPath, Pool], Result) :-
 
 
 % The unary minus ('-') operator.
-evaluate_rhs(ENV0, unop(unm, Expression), ENV1, Result) :-
-   evaluate_rhs(ENV0, Expression, ENV1, Values), !,
+evaluate_rhs(ENV0, unop(unm, Expression), ENVn, Result) :-
+   evaluate_rhs(ENV0, Expression, ENV1, Values),
    (
+      % If the expression evaluates into an error, then return it.
       Values = error(_) ->
-      Result = Values;
       (
-         Values = [numbertype(N) | _],
-         M is -N,
-         Result = [numbertype(M)]
+         ENVn = ENV1,
+         Result = Values
+      );
+      (
+         % Convert the return value into a number.
+         Values = [Value | _],
+         evaluate_stat(ENV1, intrinsic(tonumber, Value), ENV2, CTRL, NumericalValues),
+         (
+            CTRL = error ->
+            (
+               ENVn = ENV2,
+               Result = NumericalValues
+            );
+            (
+               NumericalValues = [Numeric | _],
+               (
+                  Numeric = numbertype(_) ->
+                  (
+                     % If the numeric value is numeric, then return its negative value.
+                     Numeric = numbertype(N),
+                     M is -N,
+                     ENVn = ENV2,
+                     Result = [numbertype(M)]
+                  );
+                  (
+                     % The value is not numeric then it must be a table.
+                     Value \= referencetype(table, _) ->
+                     (
+                        ENVn = ENV2,
+                        Result = error('\'-\' operator requires an operand that is either a number or table.')
+                     );
+                     (
+                        % Call the '__unm' metamethod.
+                        Value = referencetype(_, Address),
+                        callmetamethod(ENV2, Address, '__unm', [Value], ENVn, Result)
+                     )
+                  )
+               )
+            )
+         )
       )
    ).
 
@@ -360,7 +397,7 @@ evaluate_rhs(ENV0, unop(not, Expression), ENV1, Result) :-
       Values = error(_) ->
       Result = Values;
       (
-         [Value | _] = Values,
+         Values = [Value | _],
          (
             member(Value, [niltype(nil), booleantype(false)]) ->
             Result = [booleantype(true)];
