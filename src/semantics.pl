@@ -23,25 +23,6 @@
  */
 
 
-% Value management.
-% ------------------------------------------------------------------------------
-
-% Return the type of a value.
-value_type(niltype(_), 'nil').
-value_type(booleantype(_), 'boolean').
-value_type(numbertype(_), 'number').
-value_type(stringtype(_), 'string').
-value_type(referencetype(table, _), 'table').
-value_type(referencetype(function, _), 'function').
-
-
-% Return the raw value.
-value_raw(niltype(nil), nil).
-value_raw(booleantype(B), B).
-value_raw(numbertype(N), N).
-value_raw(stringtype(S), S).
-value_raw(referencetype(Type, Address), [Type, Address]).
-
 
 % Expression evaluation.
 % ------------------------------------------------------------------------------
@@ -471,30 +452,15 @@ evaluate_rhs(ENV0, binop(Operator, E1, E2), ENVn, Result) :-
                (
                   % Find the metamethod to call.
                   atom_concat('__', Operator, MetamethodName),
-                  V1 = referencetype(_, ADDR1),
-                  V2 = referencetype(_, ADDR2),
-                  getbinhandler(ENV4, ADDR1, ADDR2, MetamethodName, MetamethodReference),
+                  getbinhandler(ENV2, V1, V2, MetamethodName, MetamethodReference),
                   (
                      MetamethodReference = referencetype(function, _) ->
-                     (
-                        MetamethodReference = referencetype(function, MetamethodAddress),
-                        ENV4 = [ContextPath, Pool],
-                        ENVn = [ContextPath, NewPool],
-
-                        getObject(Pool, MetamethodAddress, function(PS, SS, FunctionContextPath)),
-                        pushContext([FunctionContextPath, Pool], PS, [V1, V2], ENV5), !,
-                        evaluate_stat(ENV5, statements(SS), ENV6, _, Result),
-                        popContext(ENV6, [_, NewPool])
-                     );
+                     evaluate_rhs(ENV2, functioncall(MetamethodReference, [V1, V2]), ENVn, Result);
                      (
                         % The metamethod was not defined so we return an error.
                         ENVn = ENV4,
-                        Result = error(Message),
-                        (
-                           ADDR1 \= ADDR2 ->
-                           format(atom(Message), 'The \'~w\' metamethod is not defined for table:~w or table:~w.', [MetamethodName, ADDR1, ADDR2]);
-                           format(atom(Message), 'The \'~w\' metamethod is not defined for table:~w.', [MetamethodName, ADDR1])
-                        )
+                        format(atom(Message), 'The \'~w\' metamethod is not defined.', [MetamethodName]),
+                        Result = error(Message)
                      )
                   )
                )
@@ -539,13 +505,13 @@ evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
 evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(true)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   value_raw(V1, RV),
-   value_raw(V2, RV), !.
+   V1 =.. [_, RV],
+   V2 =.. [_, RV], !.
 evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   value_raw(V1, RV1),
-   value_raw(V2, RV2),
+   V1 =.. [_, RV1],
+   V2 =.. [_, RV2],
    RV1 \= RV2, !.
 
 
@@ -606,7 +572,7 @@ evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, error('Right operand is not a number
 
 
 
-% The and operator.
+% The and operator.                                                                                   % ADD ERROR HANDLING!
 evaluate_rhs(ENV0, binop(and, E1, _), ENV1, [V]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    member(V, [niltype(nil), booleantype(false)]), !.
@@ -617,7 +583,7 @@ evaluate_rhs(ENV0, binop(and, E1, E2), ENV2, VS) :-
 
 
 
-% The or operator.
+% The or operator.                                                                                    % ADD ERROR HANDLING!
 evaluate_rhs(ENV0, binop(or, E1, _), ENV1, [V]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V | _]),
    \+member(V, [niltype(nil), booleantype(false)]), !.
@@ -629,44 +595,85 @@ evaluate_rhs(ENV0, binop(or, E1, E2), ENV2, VS) :-
 
 
 % The concatenation operator.
-evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, [stringtype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
-   atom_concat(A, B, C), !.
-evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, [numbertype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   atom_length(B, Length),
-   C is ((A * (10 ** Length)) + B), !.
-evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, [stringtype(C)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
-   member(V1, [numbertype(_), stringtype(_)]),
-   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   member(V2, [numbertype(_), stringtype(_)]),
-   value_type(V1, T1),
-   value_type(V2, T2),
-   T1 \= T2,
-   value_raw(V1, A),
-   value_raw(V2, B),
-   atom_concat(A, B, C), !.
-evaluate_rhs(ENV0, binop(concat, E1, _), ENV1, error('Left operand is not a number or string')) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
-   \+member(V, [numbertype(_), stringtype(_)]), !.
-evaluate_rhs(ENV0, binop(concat, E1, E2), ENV2, error('Right operand is not a number or string')) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
-   member(V1, [numbertype(_), stringtype(_)]),
-   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   \+member(V2, [numbertype(_), stringtype(_)]), !.
-
-
-
-% Generic error handling for binary operators.
-evaluate_rhs(ENV0, binop(_, E1, _), ENV1, error(Message)) :-
-   evaluate_rhs(ENV0, E1, ENV1, error(Message)), !.
-evaluate_rhs(ENV0, binop(_, E1, E2), ENV2, error(Message)) :-
-   evaluate_rhs(ENV0, E1, ENV1, _),
-   evaluate_rhs(ENV1, E2, ENV2, error(Message)), !.
-
+evaluate_rhs(ENV0, binop(concat, EXP1, EXP2), ENVn, Result) :-
+   evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
+   evaluate_rhs(ENV1, EXP2, ENV2, VS_EXP2),
+   (
+      VS_EXP1 \= error(_), VS_EXP2 \= error(_) ->
+      (
+         VS_EXP1 = [V_EXP1 | _],
+         VS_EXP2 = [V_EXP2 | _],
+         (
+            % Make sure the operands are valid.
+            member(V_EXP1, [stringtype(_), numbertype(_), referencetype(table, _)]),
+            member(V_EXP2, [stringtype(_), numbertype(_), referencetype(table, _)]) ->
+            (
+               member(V_EXP1, [stringtype(_), numbertype(_)]),
+               member(V_EXP2, [stringtype(_), numbertype(_)]) ->
+               (
+                  ENVn = ENV2,
+                  (
+                     % If both evaluated expressions belong to the {stringtype, numbertype}
+                     % set, perform primitive concatenation.
+                     V_EXP1 = numbertype(_), V_EXP2 = numbertype(_) ->
+                     (
+                        % Number concatenation.
+                        V_EXP1 = numbertype(A),
+                        V_EXP2 = numbertype(B),
+                        atom_length(B, Length),
+                        C is ((A * (10 ** Length)) + B),
+                        Result = [numbertype(C)]
+                     );
+                     (
+                        % String concatenation.
+                        V_EXP1 =.. [_, A],
+                        V_EXP2 =.. [_, B],
+                        atom_concat(A, B, C),
+                        Result = [stringtype(C)]
+                     )
+                  )
+               );
+               (
+                  % If any of the evaluated values is not a string or number, then
+                  % call the "__concat" metamethod if it exists.
+                  getbinhandler(ENV2, V_EXP1, V_EXP2, '__concat', MetamethodReference),
+                  (
+                     MetamethodReference = referencetype(function, _) ->
+                     evaluate_rhs(ENV2, functioncall(MetamethodReference, [V_EXP1, V_EXP2]), ENVn, Result);
+                     (
+                        ENVn = ENV2,
+                        Result = error('The \'__concat\' metamethod is not defined.')
+                     )
+                  )
+               )
+            );
+            (
+               % An invalid operand was passed to the concatenation operator.
+               \+member(V_EXP1, [stringtype(_), numbertype(_), referencetype(table, _)]) ->
+               (
+                  ENVn = ENV1,
+                  Result = error('\'..\' requires a left operand that is either a number, string or table.')
+               );
+               (
+                  ENVn = ENV2,
+                  Result = error('\'..\' requires a right operand that is either a number, string or table.')
+               )
+            )
+         )
+      );
+      (
+         % One of the evaluated expressions resulted in an error.
+         VS_EXP1 = error(_) ->
+         (
+            ENVn = ENV1,
+            Result = VS_EXP1
+         );
+         (
+            ENVn = ENV2,
+            Result = VS_EXP2
+         )
+      )
+   ).
 
 
 % Evaluate a function definition.
@@ -973,7 +980,7 @@ evaluate_stat(ENV0, intrinsic(error, E), ENV1, error, error(Message)) :-
 % The type function.
 evaluate_stat(ENV0, intrinsic(type, E), ENV1, return, [stringtype(Type)]) :-
    evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   value_type(V, Type), !.
+   V =.. [Type, _], !.
 evaluate_stat(ENV0, intrinsic(type, E), ENV1, error, error(Message)) :-
    evaluate_rhs(ENV0, E, ENV1, error(Message)).
 

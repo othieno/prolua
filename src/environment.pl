@@ -216,7 +216,7 @@ setObject(pool(Offset, Memory), Address, Value, pool(Offset, NewMemory)) :-
 
 % Return the metamethod of a given table. Note that this predicate takes the
 % address of a table that may or may not have a metatable attached to it, and
-% not the address of the metatable where the metamethod is defined.
+% not the address of the metatable where the metamethod key is defined.
 getmetamethod([_, Pool], TableAddress, MetamethodName, Metamethod) :-
    getObject(Pool, TableAddress, Object),
    (
@@ -264,13 +264,21 @@ callmetamethod(ENV0, Address, MetamethodName, Arguments, ENVn, Result) :-
 
 
 % Choose a handler for the binary operation (as described in the Lua 5.1 documentation).
-getbinhandler(ENV, Address1, Address2, MetamethodName, MetamethodReference) :-
-   getmetamethod(ENV, Address1, MetamethodName, MetamethodReference1),
+getbinhandler(ENV, V1, V2, MetamethodName, Result) :-
+(
+   % If the first value is a table and has a metatable containing the metamethod, then
+   % the reference to the function is returned.
+   V1 = referencetype(table, ADDR1),
+   getmetamethod(ENV, ADDR1, MetamethodName, referencetype(function, MetamethodAddress)) ->
+   Result = referencetype(function, MetamethodAddress);
    (
-      MetamethodReference1 \= niltype(nil) ->
-      MetamethodReference = MetamethodReference1;
-      getmetamethod(ENV, Address2, MetamethodName, MetamethodReference)
-   ).
+      % On the other hand, if the first value does not have a metatable, then the
+      % second value is checked.
+      V2 = referencetype(table, ADDR2) ->
+      getmetamethod(ENV, ADDR2, MetamethodName, Result);
+      Result = niltype(nil)
+   )
+).
 
 
 
