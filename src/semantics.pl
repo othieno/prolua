@@ -499,8 +499,8 @@ evaluate_rhs(ENV0, binop(Operator, E1, E2), ENVn, Result) :-
 evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
    evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   value_type(V1, T1),
-   value_type(V2, T2),
+   V1 =.. [T1, _],
+   V2 =.. [T2, _],
    T1 \= T2, !.
 evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(true)]) :-
    evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
@@ -978,11 +978,25 @@ evaluate_stat(ENV0, intrinsic(error, E), ENV1, error, error(Message)) :-
 
 
 % The type function.
-evaluate_stat(ENV0, intrinsic(type, E), ENV1, return, [stringtype(Type)]) :-
-   evaluate_rhs(ENV0, E, ENV1, [V | _]),
-   V =.. [Type, _], !.
-evaluate_stat(ENV0, intrinsic(type, E), ENV1, error, error(Message)) :-
-   evaluate_rhs(ENV0, E, ENV1, error(Message)).
+evaluate_stat(ENV0, intrinsic(type, EXP), ENV1, CTRL, Result) :-
+   evaluate_rhs(ENV0, EXP, ENV1, VS_EXP1),
+   (
+      VS_EXP1 \= error(_) ->
+      (
+         % Get the value's internal type (niltype, booleantype, numbertype, stringtype
+         % or referencetype) then remove the 'type' suffix from it. Once this is done,
+         % return the new type in the form of a string.
+         VS_EXP1 = [V_EXP1 | _],
+         V_EXP1 =.. [InternalType, _],
+         atom_concat(Type, 'type', InternalType),
+         CTRL = return,
+         Result = [stringtype(Type)]
+      );
+      (
+         CTRL = error,
+         Result = VS_EXP1
+      )
+   ).
 
 
 
