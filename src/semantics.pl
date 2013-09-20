@@ -572,25 +572,45 @@ evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, error('Right operand is not a number
 
 
 
-% The and operator.                                                                                   % ADD ERROR HANDLING!
-evaluate_rhs(ENV0, binop(and, E1, _), ENV1, [V]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
-   member(V, [niltype(nil), booleantype(false)]), !.
-evaluate_rhs(ENV0, binop(and, E1, E2), ENV2, VS) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]),
-   evaluate_rhs(ENV1, E2, ENV2, VS), !.
+% The and operator.
+evaluate_rhs(ENV0, binop(and, EXP1, EXP2), ENVn, Result) :-
+   evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
+   (
+      VS_EXP1 \= error(_) ->
+      (
+         VS_EXP1 = [V_EXP1 | _],
+         (
+            \+member(V_EXP1, [niltype(nil), booleantype(false)]) ->
+            evaluate_rhs(ENV1, EXP2, ENVn, Result);
+            (
+               ENVn = ENV1,
+               Result = [V_EXP1]
+            )
+         )
+      );
+      Result = VS_EXP1
+   ).
 
 
 
-% The or operator.                                                                                    % ADD ERROR HANDLING!
-evaluate_rhs(ENV0, binop(or, E1, _), ENV1, [V]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
-   \+member(V, [niltype(nil), booleantype(false)]), !.
-evaluate_rhs(ENV0, binop(or, E1, E2), ENV2, VS) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
-   member(V, [niltype(nil), booleantype(false)]),
-   evaluate_rhs(ENV1, E2, ENV2, VS), !.
+% The or operator.
+evaluate_rhs(ENV0, binop(or, EXP1, EXP2), ENVn, Result) :-
+   evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
+   (
+      VS_EXP1 \= error(_) ->
+      (
+         VS_EXP1 = [V_EXP1 | _],
+         (
+            member(V_EXP1, [niltype(nil), booleantype(false)]) ->
+            evaluate_rhs(ENV1, EXP2, ENVn, Result);
+            (
+               ENVn = ENV1,
+               Result = [V_EXP1]
+            )
+         )
+      );
+      Result = VS_EXP1
+   ).
 
 
 
@@ -674,6 +694,7 @@ evaluate_rhs(ENV0, binop(concat, EXP1, EXP2), ENVn, Result) :-
          )
       )
    ).
+
 
 
 % Evaluate a function definition.
