@@ -214,28 +214,36 @@ setObject(pool(Offset, Memory), Address, Value, pool(Offset, NewMemory)) :-
 
 
 
-% Return the metamethod of a given table. Note that this predicate takes the
-% address of a table that may or may not have a metatable attached to it, and
-% not the address of the metatable where the metamethod key is defined.
-getmetamethod([_, Pool], TableAddress, MetamethodName, Metamethod) :-
-   getObject(Pool, TableAddress, Object),
+% Return the metamethod defined for a given value. If no metatable containing
+% the metamethod name is found, then nil is returned.
+getmetamethod([_, Pool], Value, MetamethodName, Metamethod) :-
+(
+   Value \= referencetype(table, _) ->
+   Metamethod = niltype(nil);
    (
-      Object \= table(_, referencetype(table, _)) ->
-      Metamethod = niltype(nil);
+      Value = referencetype(_, TableAddress),
+      getObject(Pool, TableAddress, Object),
       (
-         Object = table(_, referencetype(table, MetatableAddress)),
-         getObject(Pool, MetatableAddress, Metatable),
+         % If the table does not have a metatable, then return nil.
+         Object \= table(_, referencetype(table, _)) ->
+         Metamethod = niltype(nil);
          (
-            Metatable \= table(_, _) ->
-            Metamethod = niltype(nil);
+            Object = table(_, referencetype(table, MetatableAddress)),
+            getObject(Pool, MetatableAddress, Metatable),
             (
-               % A metatable was found. But does it have the metamethod?
-               Metatable = table(Map, _),
-               map_get(Map, stringtype(MetamethodName), Metamethod)
+               Metatable \= table(_, _) ->
+               Metamethod = niltype(nil);
+               (
+                  % A metatable was found. But does it have the metamethod?
+                  Metatable = table(Map, _),
+                  map_get(Map, stringtype(MetamethodName), Metamethod)
+               )
             )
          )
       )
-   ).
+   )
+).
+
 
 
 
@@ -243,16 +251,33 @@ getmetamethod([_, Pool], TableAddress, MetamethodName, Metamethod) :-
 getbinhandler(ENV, V1, V2, MetamethodName, Result) :-
 (
    % If the first value is a table and has a metatable containing the metamethod, then
-   % the reference to the function is returned.
-   V1 = referencetype(table, ADDR1),
-   getmetamethod(ENV, ADDR1, MetamethodName, referencetype(function, MetamethodAddress)) ->
+   % the reference to the function is returned. On the other hand, if the first value
+   % does not have a metatable, then the second value is checked.
+   getmetamethod(ENV, V1, MetamethodName, referencetype(function, MetamethodAddress)) ->
    Result = referencetype(function, MetamethodAddress);
+   getmetamethod(ENV, V2, MetamethodName, Result)
+).
+
+
+
+% Choose a metamethod for comparison operators (as described in the Lua 5.1 documentation).
+getcomphandler(ENV, V1, V2, MetamethodName, Metamethod) :-
+(
+   V1 =.. [T1 | _],
+   V2 =.. [T2 | _],
+
+   % If the types are not identical, then the result is nil.
    (
-      % On the other hand, if the first value does not have a metatable, then the
-      % second value is checked.
-      V2 = referencetype(table, ADDR2) ->
-      getmetamethod(ENV, ADDR2, MetamethodName, Result);
-      Result = niltype(nil)
+      T1 \= T2 ->
+      Metamethod = niltype(nil);
+      (
+         % If V1 and V2 return the same metamethod, then it is the method returned
+         % by this predicate.
+         getmetamethod(ENV, V1, MetamethodName, MM),
+         getmetamethod(ENV, V2, MetamethodName, MM) ->
+         Metamethod = MM;
+         Metamethod = niltype(nil)
+      )
    )
 ).
 
