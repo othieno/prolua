@@ -238,30 +238,6 @@ getmetamethod([_, Pool], TableAddress, MetamethodName, Metamethod) :-
    ).
 
 
-% Call a metamethod.
-callmetamethod(ENV0, Address, MetamethodName, Arguments, ENVn, Result) :-
-   getmetamethod(ENV0, Address, MetamethodName, MetamethodReference),
-   (
-      MetamethodReference \= referencetype(function, _) ->
-      (
-         % No metamethod with the given name has been set.
-         ENVn = ENV0,
-         format(atom(Message), 'The \'~w\' metamethod is not defined for table:~w.', [MetamethodName, Address]),
-         Result = error(Message)
-      );
-      (
-         MetamethodReference = referencetype(function, MetamethodAddress),
-         ENV0 = [ContextPath, Pool],
-         ENVn = [ContextPath, NewPool],
-
-         getObject(Pool, MetamethodAddress, function(PS, SS, FunctionContextPath)),
-         pushContext([FunctionContextPath, Pool], PS, Arguments, ENV1), !,
-         evaluate_stat(ENV1, statements(SS), ENV2, _, Result),
-         popContext(ENV2, [_, NewPool])
-      )
-   ).
-
-
 
 % Choose a handler for the binary operation (as described in the Lua 5.1 documentation).
 getbinhandler(ENV, V1, V2, MetamethodName, Result) :-
