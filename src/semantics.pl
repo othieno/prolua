@@ -359,8 +359,15 @@ evaluate_rhs(ENV0, unop(unm, Expression), ENVn, Result) :-
                      );
                      (
                         % Call the '__unm' metamethod.
-                        Value = referencetype(_, Address),
-                        callmetamethod(ENV2, Address, '__unm', [Value], ENVn, Result)
+                        getmetamethod(ENV2, Value, '__unm', Metamethod),
+                        (
+                           Metamethod = referencetype(function, _) ->
+                           evaluate_rhs(ENV2, functioncall(Metamethod, [Value]), ENVn, Result);
+                           (
+                              ENVn = ENV2,
+                              Result = error('The \'__unm\' metamethod is not defined.')
+                           )
+                        )
                      )
                   )
                )
@@ -455,7 +462,7 @@ evaluate_rhs(ENV0, binop(Operator, E1, E2), ENVn, Result) :-
                   getbinhandler(ENV2, V1, V2, MetamethodName, MetamethodReference),
                   (
                      MetamethodReference = referencetype(function, _) ->
-                     evaluate_rhs(ENV2, functioncall(MetamethodReference, [V1, V2]), ENVn, Result);
+                     evaluate_rhs(ENV2, enclosed(functioncall(MetamethodReference, [V1, V2])), ENVn, Result);
                      (
                         % The metamethod was not defined so we return an error.
                         ENVn = ENV4,
@@ -496,23 +503,58 @@ evaluate_rhs(ENV0, binop(Operator, E1, E2), ENVn, Result) :-
 
 
 % The equality operator.
-evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   V1 =.. [T1, _],
-   V2 =.. [T2, _],
-   T1 \= T2, !.
-evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(true)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   V1 =.. [_, RV],
-   V2 =.. [_, RV], !.
-evaluate_rhs(ENV0, binop(eq, E1, E2), ENV2, [booleantype(false)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   V1 =.. [_, RV1],
-   V2 =.. [_, RV2],
-   RV1 \= RV2, !.
+evaluate_rhs(ENV0, binop(eq, EXP1, EXP2), ENVn, Result) :-
+   evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
+   evaluate_rhs(ENV1, EXP2, ENV2, VS_EXP2),
+   (
+      VS_EXP1 \= error(_), VS_EXP2 \= error(_) ->
+      (
+         % Get the raw values and their corresponding types.
+         VS_EXP1 = [V_EXP1 | _],
+         VS_EXP2 = [V_EXP2 | _],
+         V_EXP1 =.. [T1 | RV1],
+         V_EXP2 =.. [T2 | RV2],
+         (
+            % Different types means the expressions are different.
+            T1 \= T2 ->
+            (
+               ENVn = ENV2,
+               Result = [booleantype(false)]
+            );
+            (
+               % If the raw values are identical, then the expressions are equivalent.
+               RV1 = RV2 ->
+               (
+                  ENVn = ENV2,
+                  Result = [booleantype(true)]
+               );
+               (
+                  % If the values are not equal, then call the '__eq' metamethod.
+                  getcomphandler(ENV2, V_EXP1, V_EXP2, '__eq', MetamethodReference),
+                  (
+                     MetamethodReference = referencetype(function, _) ->
+                     evaluate_rhs(ENV2, enclosed(functioncall(MetamethodReference, [V_EXP1, V_EXP2])), ENVn, Result);
+                     (
+                        ENVn = ENV2,
+                        Result = [booleantype(false)]
+                     )
+                  )
+               )
+            )
+         )
+      );
+      (
+         VS_EXP1 = error(_) ->
+         (
+            ENVn = ENV1,
+            Result = VS_EXP1
+         );
+         (
+            ENVn = ENV2,
+            Result = VS_EXP2
+         )
+      )
+   ).
 
 
 
@@ -659,7 +701,7 @@ evaluate_rhs(ENV0, binop(concat, EXP1, EXP2), ENVn, Result) :-
                   getbinhandler(ENV2, V_EXP1, V_EXP2, '__concat', MetamethodReference),
                   (
                      MetamethodReference = referencetype(function, _) ->
-                     evaluate_rhs(ENV2, functioncall(MetamethodReference, [V_EXP1, V_EXP2]), ENVn, Result);
+                     evaluate_rhs(ENV2, enclosed(functioncall(MetamethodReference, [V_EXP1, V_EXP2])), ENVn, Result);
                      (
                         ENVn = ENV2,
                         Result = error('The \'__concat\' metamethod is not defined.')
@@ -704,46 +746,54 @@ evaluate_rhs([ContextPath, Pool], functiondef(PS, SS), ENV, [Reference]) :-
 
 
 % Evaluate a function call.
-evaluate_rhs(ENV0, functioncall(E, ES), ENVn, Result) :-
-   evaluate_rhs(ENV0, E, ENV1, VS_E),
-   evaluate_rhs(ENV1, expressions(ES), ENV2, VS_ES),
+evaluate_rhs(ENV0, functioncall(EXP, EXPS), ENVn, Result) :-
+   evaluate_rhs(ENV0, EXP, ENV1, VS_EXP),
+   evaluate_rhs(ENV1, expressions(EXPS), ENV2, VS_EXPS),
    (
-      VS_E \= error(_), VS_ES \= error(_) ->
+      VS_EXP \= error(_), VS_EXPS \= error(_) ->
       (
-         VS_E \= [referencetype(_, _) | _] ->
+         VS_EXP \= [referencetype(_, _) | _] ->
          (
             ENVn = ENV1,
             Result = error('Expression is not a callable object.')
          );
          (
-            [referencetype(Type, Address) | _] = VS_E,
+            VS_EXP = [V_EXP  | _],
+            V_EXP = referencetype(Type, Address),
             (
-               Type = table ->
-               (
-                  % Prepend the calling object to the list of arguments passed to the metamethod.
-                  MetamethodArguments = [referencetype(Type, Address) | VS_ES],
-                  callmetamethod(ENV2, Address, '__call', MetamethodArguments, ENVn, Result)
-               );
+               Type = function ->
                (
                   ENV2 = [ContextPath, Pool],
                   ENVn = [ContextPath, NewPool],
                   getObject(Pool, Address, function(PS, SS, FunctionContextPath)),
-                  pushContext([FunctionContextPath, Pool], PS, VS_ES, ENV3), !,
+                  pushContext([FunctionContextPath, Pool], PS, VS_EXPS, ENV3),
                   evaluate_stat(ENV3, statements(SS), ENV4, _, Result),
                   popContext(ENV4, [_, NewPool])
+               );
+               (
+                  % The reference points towards a table. Call the '__call' metamethod.
+                  getmetamethod(ENV2, V_EXP, '__call', Metamethod),
+                  (
+                     Metamethod = referencetype(function, _) ->
+                     evaluate_rhs(ENV2, functioncall(Metamethod, [V_EXP | VS_EXPS]), ENVn, Result);
+                     (
+                        ENVn = ENV2,
+                        Result = error('The \'__call\' metamethod is not defined.')
+                     )
+                  )
                )
             )
          )
       );
       (
-         VS_E = error(_) ->
+         VS_EXP = error(_) ->
          (
             ENVn = ENV1,
-            Result = VS_E
+            Result = VS_EXP
          );
          (
             ENVn = ENV2,
-            Result = VS_ES
+            Result = VS_EXPS
          )
       )
    ).
@@ -1008,7 +1058,7 @@ evaluate_stat(ENV0, intrinsic(type, EXP), ENV1, CTRL, Result) :-
          % or referencetype) then remove the 'type' suffix from it. Once this is done,
          % return the new type in the form of a string.
          VS_EXP1 = [V_EXP1 | _],
-         V_EXP1 =.. [InternalType, _],
+         V_EXP1 =.. [InternalType | _],
          atom_concat(Type, 'type', InternalType),
          CTRL = return,
          Result = [stringtype(Type)]
