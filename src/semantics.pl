@@ -613,7 +613,7 @@ evaluate_rhs(ENV0, binop(lt, EXP1, EXP2), ENVn, Result) :-
                )
             );
             (
-               % The value is not a number, string or object that may define the '__eq' metamethod.
+               % The value is not a number, string or object that may define the '__lt' metamethod.
                \+member(V_EXP1, [numbertype(_), stringtype(_), referencetype(_, _)]) ->
                (
                   ENVn = ENV1,
@@ -642,30 +642,92 @@ evaluate_rhs(ENV0, binop(lt, EXP1, EXP2), ENVn, Result) :-
 
 
 % The less-than-or-equal operator.
-evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(true)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   A =< B, !.
-evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(false)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [numbertype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [numbertype(B) | _]),
-   A > B, !.
-evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(true)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
-   A @=< B, !.
-evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, [booleantype(false)]) :-
-   evaluate_rhs(ENV0, E1, ENV1, [stringtype(A) | _]),
-   evaluate_rhs(ENV1, E2, ENV2, [stringtype(B) | _]),
-   A @> B, !.
-evaluate_rhs(ENV0, binop(le, E1, _), ENV1, error('Left operand is not a number or string.')) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V | _]),
-   \+member(V, [numbertype(_), stringtype(_)]), !.
-evaluate_rhs(ENV0, binop(le, E1, E2), ENV2, error('Right operand is not a number or string.')) :-
-   evaluate_rhs(ENV0, E1, ENV1, [V1 | _]),
-   member(V1, [numbertype(_), stringtype(_)]),
-   evaluate_rhs(ENV1, E2, ENV2, [V2 | _]),
-   \+member(V2, [numbertype(_), stringtype(_)]), !.
+evaluate_rhs(ENV0, binop(le, EXP1, EXP2), ENVn, Result) :-
+   evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
+   evaluate_rhs(ENV1, EXP2, ENV2, VS_EXP2),
+   (
+      VS_EXP1 \= error(_), VS_EXP2 \= error(_) ->
+      (
+         VS_EXP1 = [V_EXP1 | _],
+         VS_EXP2 = [V_EXP2 | _],
+         (
+            member(V_EXP1, [numbertype(_), stringtype(_), referencetype(table, _)]),
+            member(V_EXP2, [numbertype(_), stringtype(_), referencetype(table, _)]) ->
+            (
+               V_EXP1 = numbertype(_), V_EXP2 = numbertype(_) ->
+               (
+                  ENVn = ENV2,
+
+                  % Numeric comparison.
+                  V_EXP1 = numbertype(A),
+                  V_EXP2 = numbertype(B),
+                  (
+                     A =< B ->
+                     Result = [booleantype(true)];
+                     Result = [booleantype(false)]
+                  )
+               );
+               (
+                  V_EXP1 = stringtype(_), V_EXP2 = stringtype(_) ->
+                  (
+                     ENVn = ENV2,
+
+                     % Lexicographic comparison.
+                     V_EXP1 = stringtype(A),
+                     V_EXP2 = stringtype(B),
+                     (
+                        A @=< B ->
+                        Result = [booleantype(true)];
+                        Result = [booleantype(false)]
+                     )
+                  );
+                  (
+                     % Metamethod comparison.
+                     getcomphandler(ENV2, V_EXP1, V_EXP2, '__le', MetamethodReference),
+                     (
+                        MetamethodReference = referencetype(function, _) ->
+                        evaluate_rhs(ENV2, enclosed(functioncall(MetamethodReference, [V_EXP1, V_EXP2])), ENVn, Result);
+                        (
+                           getcomphandler(ENV2, V_EXP2, V_EXP2, '__lt', BackupMetamethodReference),
+                           (
+                              BackupMetamethodReference = referencetype(function, _) ->
+                              evaluate_rhs(ENV2, unop(not, functioncall(BackupMetamethodReference, [V_EXP2, V_EXP1])), ENVn, Result);
+                              (
+                                 ENVn = ENV2,
+                                 Result = error('The \'__le\' or \'__lt\' metamethod is not defined.')
+                              )
+                           )
+                        )
+                     )
+                  )
+               )
+            );
+            (
+               % The value is not a number, string or object that may define the '__le' metamethod.
+               \+member(V_EXP1, [numbertype(_), stringtype(_), referencetype(_, _)]) ->
+               (
+                  ENVn = ENV1,
+                  Result = error('The \'<=\' operator requires a left operand that is either a number, string or table.')
+               );
+               (
+                  ENVn = ENV2,
+                  Result = error('The \'<=\' operator requires a right operand that is either a number, string or table.')
+               )
+            )
+         )
+      );
+      (
+         VS_EXP1 = error(_) ->
+         (
+            ENVn = ENV1,
+            Result = VS_EXP1
+         );
+         (
+            ENVn = ENV2,
+            Result = VS_EXP2
+         )
+      )
+   ).
 
 
 
@@ -979,13 +1041,10 @@ evaluate_stat(ENV0, while(E, SS), ENVn, CTRL, Result) :-
                      CTRL0 = continue ->
                      evaluate_stat(ENV2, while(E, SS), ENVn, CTRL, Result);
                      (
-                        member(CTRL0, [return, error]) ->
-                        (
-                           ENVn = ENV2,
-                           CTRL = CTRL0,
-                           Result = Values
-                        );
-                        true
+                        % In the case CTRL0 belongs to the {return, error} set...
+                        ENVn = ENV2,
+                        CTRL = CTRL0,
+                        Result = Values
                      )
                   )
                )
