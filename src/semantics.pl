@@ -275,17 +275,43 @@ evaluate_rhs(ENV0, variable(Name), [NewContextPath, NewPool], [Value]) :-
 
 
 % Evaluate a right-hand side table field accessor.
-evaluate_rhs(ENV0, access(E1, E2), ENV1, Result) :-
-   evaluate_lhs(ENV0, access(E1, E2), ENV1, Values),
+evaluate_rhs(ENV0, access(EXP1, EXP2), ENVn, Result) :-
+   evaluate_lhs(ENV0, access(EXP1, EXP2), ENV1, LVALUE),
    (
-      Values = error(_) ->
-      Result = Address;
+      LVALUE \= error(_) ->
       (
-         Values = [referencetype(_, Address), Key],
          ENV1 = [_, Pool],
-         getObject(Pool, Address, table(Map, _)),
+         LVALUE = [TableReference, Key],
+         TableReference = referencetype(_, TableAddress),
+         getObject(Pool, TableAddress, table(Map, _)),
          map_get(Map, Key, Value),
-         Result = [Value]
+         (
+            Value \= niltype(nil) ->
+            (
+               ENVn = ENV1,
+               Result = [Value]
+            );
+            (
+               % Find the '__index' metamethod.
+               getmetamethod(ENV1, TableReference, '__index', Metamethod),
+               (
+                  Metamethod = referencetype(table, _) ->
+                  evaluate_rhs(ENV1, access(Metamethod, Key), ENVn, Result);
+                  (
+                     Metamethod = referencetype(function, _) ->
+                     evaluate_rhs(ENV1, enclosed(functioncall(Metamethod, [TableReference, Key])), ENVn, Result);
+                     (
+                        ENVn = ENV1,
+                        Result = [niltype(nil)]
+                     )
+                  )
+               )
+            )
+         )
+      );
+      (
+         ENVn = ENV1,
+         Result = LVALUE
       )
    ).
 
@@ -362,7 +388,7 @@ evaluate_rhs(ENV0, unop(unm, Expression), ENVn, Result) :-
                         getmetamethod(ENV2, Value, '__unm', Metamethod),
                         (
                            Metamethod = referencetype(function, _) ->
-                           evaluate_rhs(ENV2, functioncall(Metamethod, [Value]), ENVn, Result);
+                           evaluate_rhs(ENV2, enclosed(functioncall(Metamethod, [Value])), ENVn, Result);
                            (
                               ENVn = ENV2,
                               Result = error('The \'__unm\' metamethod is not defined.')
