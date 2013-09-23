@@ -131,11 +131,31 @@ setValue([ContextPath, OldPool], Locator, Key, Value, [ContextPath, NewPool]) :-
    (
       Locator = referencetype(_, Address),
       getObject(OldPool, Address, table(Map, Metatable)),
-      map_set(Map, Key, Value, NewMap),
-      setObject(OldPool, Address, table(NewMap, Metatable), NewPool)
+      map_get(Map, Key, OldValue),
+      (
+         OldValue \= niltype(nil) ->
+         (
+            map_set(Map, Key, Value, NewMap),
+            setObject(OldPool, Address, table(NewMap, Metatable), NewPool)
+         );
+         (
+            getmetamethod([ContextPath, OldPool], Locator, '__newindex', Metamethod),
+            (
+               Metamethod = referencetype(function, _) ->
+               evaluate_stat([ContextPath, OldPool], functioncall(Metamethod, [Locator, Key, Value]), [ContextPath, NewPool], _, _);
+               (
+                  Metamethod = referencetype(table, _) ->
+                  setValue([ContextPath, OldPool], Metamethod, Key, Value, [_, NewPool]);
+                  (
+                     map_set(Map, Key, Value, NewMap),
+                     setObject(OldPool, Address, table(NewMap, Metatable), NewPool)
+                  )
+               )
+            )
+         )
+      )
    )
 ).
-
 
 
 
