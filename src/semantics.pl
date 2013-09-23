@@ -1246,6 +1246,63 @@ evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, CTRL, Result) :-
 
 
 
+% The tostring function.
+evaluate_stat(ENV0, intrinsic(tostring, E), ENV1, CTRL, Result) :-
+   evaluate_rhs(ENV0, E, ENV1, Values),
+   (
+      Values \= error(_) ->
+      (
+         Values = [Value | _],
+         (
+            member(Value, [booleantype(_), numbertype(_), stringtype(_), niltype(nil)]) ->
+            (
+               Value =.. [_, RawValue],
+               ENVn = ENV1,
+               CTRL = return,
+               Result = [stringtype(RawValue)]
+            );
+            (
+               Value = referencetype(table, _) ->
+               (
+                  getmetamethod(ENV1, Value, '__tostring', Metamethod),
+                  (
+                     Metamethod = referencetype(function, _) ->
+                     (
+                        evaluate_rhs(ENV1, enclosed(functioncall(Metamethod, [Value])), ENVn, Result),
+                        (
+                           Result = error(_) ->
+                           CTRL = error;
+                           CTRL = return
+                        )
+                     );
+                     (
+                        Value = referencetype(Type, Address),
+                        format(atom(Output), '~w:~w', [Type, Address]),
+                        ENVn = ENV1,
+                        CTRL = return,
+                        Result = [stringtype(Output)]
+                     )
+                  )
+               );
+               (
+                  Value = referencetype(Type, Address),
+                  format(atom(Output), '~w:~w', [Type, Address]),
+                  ENVn = ENV1,
+                  CTRL = return,
+                  Result = [stringtype(Output)]
+               )
+            )
+         )
+      );
+      (
+         ENVn = ENV1,
+         CTRL = error,
+         Result = Values
+      )
+   ).
+
+
+
 % The next function.
 evaluate_stat(ENV0, intrinsic(next, E1, E2), ENVn, CTRL, Result) :-
    evaluate_rhs(ENV0, E1, ENV1, VS_E1),
@@ -1365,7 +1422,7 @@ evaluate_stat(ENV0, intrinsic(setmetatable, EXP1, EXP2), ENVn, CTRL, Result) :-
    evaluate_rhs(ENV0, EXP1, ENV1, VS_EXP1),
    evaluate_rhs(ENV1, EXP2, ENV2, VS_EXP2),
    (
-      VS_EXP1 = [referencetype(table, _)], VS_EXP2 = [referencetype(table, _)] ->
+      VS_EXP1 = [referencetype(table, _) | _], VS_EXP2 = [referencetype(table, _) | _] ->
       (
          VS_EXP1 = [referencetype(_, TableAddress)],
          VS_EXP2 = [MetatableReference | _],
