@@ -1188,24 +1188,85 @@ evaluate_stat(ENV0, intrinsic(error, E), ENV1, error, error(Message)) :-
 
 
 
+% The assert function.
+evaluate_stat(ENV0, intrinsic(assert, EXP), ENV1, CTRL, Result) :-
+   evaluate_rhs(ENV0, EXP, ENV1, VS_EXP),
+   (
+      VS_EXP \= error(_) ->
+      (
+         VS_EXP = [V_EXP | _],
+         length(VS_EXP, NumberOfParameters),
+         (
+            member(V_EXP, [booleantype(false), niltype(nil)]) ->
+            (
+               % The assertion failed.
+               CTRL = error,
+               (
+                  NumberOfParameters < 2 ->
+                  Result = error('Assertion failed.');
+                  (
+                     % A custom error message was given. Print it.
+                     VS_EXP = [_, Message | _],
+                     (
+                        % If the message is nil, then print the default message.
+                        Message = niltype(nil) ->
+                        Result = error('Assertion failed.');
+                        (
+                           % If Message is a function, table or boolean, return a 'bad argument' error.
+                           member(Message, [referencetype(_, _), booleantype(_)]) ->
+                           (
+                              evaluate_stat(ENV1, intrinsic(type, Message), _, _, [stringtype(Type) | _]),
+                              format(atom(Output), 'Assertion failed: bad argument #2 to \'assert\' (string expected, got ~w).', Type),
+                              Result = error(Output)
+                           );
+                           (
+                              Message =.. [_, ErrorMessage | _],
+                              format(atom(Output), 'Assertion failed: ~w', ErrorMessage),
+                              Result = error(Output)
+                           )
+                        )
+                     )
+                  )
+               )
+            );
+            (
+               CTRL = return,
+               Result = VS_EXP
+            )
+         )
+      );
+      (
+         CTRL = error,
+         Result = VS_EXP
+      )
+   ).
+
+
+
 % The type function.
 evaluate_stat(ENV0, intrinsic(type, EXP), ENV1, CTRL, Result) :-
-   evaluate_rhs(ENV0, EXP, ENV1, VS_EXP1),
+   evaluate_rhs(ENV0, EXP, ENV1, VS_EXP),
    (
-      VS_EXP1 \= error(_) ->
+      VS_EXP \= error(_) ->
       (
          % Get the value's internal type (niltype, booleantype, numbertype, stringtype
          % or referencetype) then remove the 'type' suffix from it. Once this is done,
          % return the new type in the form of a string.
-         VS_EXP1 = [V_EXP1 | _],
-         V_EXP1 =.. [InternalType | _],
-         atom_concat(Type, 'type', InternalType),
+         VS_EXP = [V_EXP | _],
          CTRL = return,
-         Result = [stringtype(Type)]
+         Result = [stringtype(Type)],
+         (
+            V_EXP = referencetype(_, _) ->
+            V_EXP = referencetype(Type, _);
+            (
+               V_EXP =.. [InternalType | _],
+               atom_concat(Type, 'type', InternalType)
+            )
+         )
       );
       (
          CTRL = error,
-         Result = VS_EXP1
+         Result = VS_EXP
       )
    ).
 
@@ -1389,7 +1450,6 @@ evaluate_stat(ENV0, intrinsic(ipairs, EXP), ENV1, CTRL, Result) :-
       ]
    ),
    evaluate_stat(ENV0, return([IteratorFunctionDefinition, EXP, numbertype(0)]), ENV1, CTRL, Result).
-
 
 
 
