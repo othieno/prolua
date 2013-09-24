@@ -60,7 +60,7 @@ evaluate_lhs([ContextPath, Pool], variable(Name), [ContextPath, Pool], [Locator,
       keyExists(Context, Name) ->
       Locator = ContextPath;
       (
-         popContext([ContextPath, _], [path(NewIndices), _]),
+         popContext(ContextPath, path(NewIndices)),
          (
             NewIndices = [] ->
             Locator = ContextPath;
@@ -883,8 +883,9 @@ evaluate_rhs(ENV0, binop(concat, EXP1, EXP2), ENVn, Result) :-
 
 
 % Evaluate a function definition.
-evaluate_rhs([ContextPath, Pool], functiondef(PS, SS), ENV, [Reference]) :-
-   objectAllocate([ContextPath, Pool], function(PS, SS, ContextPath), ENV, Reference).
+evaluate_rhs([ContextPath, Pool], functiondef(PS, SS), ENV2, [Reference]) :-
+   incrementContextLifetime([ContextPath, Pool], ContextPath, ENV1),
+   objectAllocate(ENV1, function(PS, SS, ContextPath), ENV2, Reference).
 
 
 

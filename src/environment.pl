@@ -97,15 +97,59 @@ popContext(path(Indices), path(NewIndices)) :-
    NewIndices = [];
    list_removeLast(Indices, NewIndices)
 ).
-popContext([ContextPath, Pool], [NewContextPath, Pool]) :-
-   popContext(ContextPath, NewContextPath).
 
+% Remove the execution context node at the given context path.
+popContext([ContextPath, Pool], [NewContextPath, NewPool]) :-
+   popContext(ContextPath, NewContextPath),
+   removeContext(ContextPath, Pool, NewPool).
 
 
 % Return the context at the given path.
 getContext(ContextPath, Pool, Context) :-
    Pool = pool(_, [[_, _, Graph] | _]),
    dag_getNode(Graph, ContextPath, node(Context, _)).
+
+
+
+% Delete an execution context node.
+removeContext(ContextPath, OldPool, NewPool) :-
+   OldPool = pool(Offset, [[Address, References, OldGraph] | MemoryBlocks]),
+   NewPool = pool(Offset, [[Address, References, NewGraph] | MemoryBlocks]),
+   dag_getNode(OldGraph, ContextPath, node(context(_, Lifetime), _)),
+   NewGraph = OldGraph.
+/*
+   (
+      % The context can be deleted iff its lifetime is less than 0.
+      Lifetime > 0 ->
+      NewGraph = OldGraph;
+      dag_removeNode(OldGraph, ContextPath, NewGraph)
+   ).
+*/
+
+
+% Increment the lifetime of a context, including all contexts
+% in the path to the targeted context.
+incrementContextLifetime([ContextPath, Pool], path([]), [ContextPath, Pool]).
+incrementContextLifetime([ContextPath, Pool], path([_ | Indices]), [ContextPath, NewPool]) :-
+   Pool = pool(Offset, [[Address, References, Graph] | MemoryBlocks]),
+   dag_getNode(Graph, ContextPath, node(context(Symbols, Lifetime), Subgraph)),
+   NewLifetime is Lifetime + 1,
+   dag_setNode(Graph, ContextPath, node(context(Symbols, NewLifetime), Subgraph), NewGraph),
+   TMP = pool(Offset, [[Address, References, NewGraph] | MemoryBlocks]),
+   incrementContextLifetime([ContextPath, TMP], path(Indices), [ContextPath, NewPool]).
+
+
+
+% Decrement the lifetime of a context, including all contexts
+% in the path to the targeted context.
+decrementContextLifetime([ContextPath, Pool], path([]), [ContextPath, Pool]).
+decrementContextLifetime([ContextPath, Pool], path([_ | Indices]), [ContextPath, NewPool]) :-
+   Pool = pool(Offset, [[Address, References, Graph] | MemoryBlocks]),
+   dag_getNode(Graph, ContextPath, node(context(Symbols, Lifetime), Subgraph)),
+   NewLifetime is Lifetime - 1,
+   dag_setNode(Graph, ContextPath, node(context(Symbols, NewLifetime), Subgraph), NewGraph),
+   TMP = pool(Offset, [[Address, References, NewGraph] | MemoryBlocks]),
+   decrementContextLifetime([ContextPath, TMP], path(Indices), [ContextPath, NewPool]).
 
 
 

@@ -36,10 +36,19 @@ list_replace([Head | Tail], N, Element, [Head | NewTail]) :-
    list_replace(Tail, M, Element, NewTail).
 
 
+% Remove the nth (from 1) element from the list.
+list_remove([], _, []).
+list_remove(List, 0, List).
+list_remove([_ | Tail], 1, Tail).
+list_remove(List, N, NewList) :-
+   N > 1,
+   M is N - 1,
+   list_remove(List, M, NewList).
+
+
 % Remove the last element in the list
 list_removeLast(List, NewList) :-
    append(NewList, [_], List).
-
 
 
 
@@ -152,6 +161,19 @@ dag_setNode(graph(RootNodes), path([NodeIndex | Indices]), NewNode, graph(NewRoo
       list_replace(RootNodes, NodeIndex, node(Content, NewSubgraph), NewRootNodes)
    )
 ).
+
+
+% Remove a node from the DAG.
+dag_removeNode(graph(RootNodes), path([NodeIndex | Indices]), graph(NewRootNodes)) :-
+   (
+      Indices = [] ->
+      list_remove(RootNodes, NodeIndex, NewRootNodes);
+      (
+         nth1(NodeIndex, RootNodes, node(Content, Subgraph)),
+         dag_removeNode(graph(Subgraph), path(Indices), graph(NewSubgraph)),
+         list_replace(RootNodes, NodeIndex, node(Content, NewSubgraph), NewRootNodes)
+      )
+   ).
 
 
 % Count the number of nodes in the graph.
