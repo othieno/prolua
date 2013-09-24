@@ -319,9 +319,9 @@ evaluate_rhs(ENV0, access(EXP1, EXP2), ENVn, Result) :-
 
 % Evaluate a variadic expression.
 evaluate_rhs([ContextPath, Pool], '...', [ContextPath, Pool], Result) :-
-   getContext(ContextPath, Pool, context(Map)),
+   getContext(ContextPath, Pool, context(Map, _)),
    (
-      keyExists(context(Map), '...') ->
+      keyExists(context(Map, _), '...') ->
       (
          map_get(Map, '...', Values),
          (

@@ -150,8 +150,8 @@ print_pool(pool(Offset, Memory)) :-
 
 
 % Print an execution context.
-print_context(context(Map), ECID) :-
-   ansi_format([bold, negative, fg(magenta)], '   Execution Context ~w \n', [ECID]),
+print_context(context(Map, Lifetime), ECID) :-
+   ansi_format([bold, negative, fg(magenta)], '   Execution Context ~w (~w)\n', [ECID, Lifetime]),
    print_map(Map, '   ').
 
 

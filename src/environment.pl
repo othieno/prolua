@@ -41,7 +41,7 @@ loadEnvironment(Arguments, [ContextPath, Pool]) :-
       ['setmetatable', referencetype(function, '0xB')],
       ['rawget', referencetype(function, '0xC')],
       ['rawset', referencetype(function, '0xD')]
-   ]),
+   ], 0),
    ContextPath = path([1]),
    Pool = pool(0xE,
    [
@@ -72,7 +72,7 @@ pushContext(ENV0, Keys, Values, ENV1) :-
 
    % Build the context node.
    map_build(Keys, Values, Map),
-   NewNode = node(context(Map), []),
+   NewNode = node(context(Map, 0), []),
 
    % Get the new node's parent.
    dag_getNode(OldGraph, path(OldIndices), node(ParentContent, ParentChildren)), !,
@@ -110,13 +110,13 @@ getContext(ContextPath, Pool, Context) :-
 
 
 % Does a key exist in a given context?
-keyExists(context(Map), Key) :- map_keyExists(Map, Key).
+keyExists(context(Map, _), Key) :- map_keyExists(Map, Key).
 
 
 
 % Return the value with a given key in a given context.
 getValue(ContextPath, Pool, Key, Value) :-
-   getContext(ContextPath, Pool, context(Map)),
+   getContext(ContextPath, Pool, context(Map, _)),
    map_get(Map, Key, Value).
 
 
@@ -128,9 +128,9 @@ setValue([ContextPath, OldPool], Locator, Key, Value, [ContextPath, NewPool]) :-
    (
       OldPool = pool(Offset, [[Address, References, OldGraph] | Memory]),
       NewPool = pool(Offset, [[Address, References, NewGraph] | Memory]),
-      dag_getNode(OldGraph, Locator, node(context(Map), Children)),
+      dag_getNode(OldGraph, Locator, node(context(Map, Lifetime), Children)),
       map_set(Map, Key, Value, NewMap),
-      dag_setNode(OldGraph, Locator, node(context(NewMap), Children), NewGraph)
+      dag_setNode(OldGraph, Locator, node(context(NewMap, Lifetime), Children), NewGraph)
    );
    (
       Locator = referencetype(_, Address),
