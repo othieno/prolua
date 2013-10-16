@@ -104,15 +104,14 @@ fields([[Key, Value] | Fields]) :-
    field(Key, Value),
    fields(Fields), !.
 
-table(Fields, _) :-
+table(Fields, referencetype(table, _)) :-
    fields(Fields), !.
 
 
 % Functions.
-function(Parameters, Statements, Reference) :-
+function(Parameters, Statements, path(_)) :-
    parameters(Parameters),
-   statements(Statements),
-   member(Reference, [[], referencetype(table, _)]), !.
+   statements(Statements), !.
 
 
 % Object references.
