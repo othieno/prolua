@@ -281,39 +281,31 @@ end
 
 -- Convert a local variable node into Prolog.
 -- param ASTNode the node to convert.
--- Declaring a local variable is made up of two parts. One creates the variable in
--- the current scope and the second assigns a value to it. For example, the
--- statement "local x, y, z = 1, 2, 3" will generate the following code:
--- "localvariable('x'), localvariable('y'), localvariable('z'),  assign([variable('x'),
--- variable('y'), variable('z')], [numbertype(1), numbertype(2), numbertype(3)])"
+-- Declaring a local variable is a semantic sugar for an assignment of variables
+-- in the current scope. For example, the statement "local x, y, z = 1, 2, 3" will
+-- generate the following code:
+-- "assign([localvariable('x'), localvariable('y'), localvariable('z')],
+--         [numbertype(1), numbertype(2), numbertype(3)])"
 convert["Local"] = function(ASTNode)
-   local instantiate = ""
-   local assign = ", assign(["
+   local assign = "assign(["
 
-   -- Get variables.
+   -- Get LHS expressions.
    for i = 1, #ASTNode[1] do
-      local output = ASTNodeToProlog(ASTNode[1][i])
-      instantiate = instantiate .. "local" .. output .. ", "
-      assign = assign .. output .. ", "
+      assign = assign .. "local" .. ASTNodeToProlog(ASTNode[1][i]) .. ", "
    end
-   instantiate = instantiate:sub(1, string.len(instantiate) - 2)
+   assign = assign:sub(1, string.len(assign) - 2) .. "], ["
 
-   -- Get values. Note that if no assignment is made, then the values are
-   -- initialised with 'nil'.
-   local nValues = #ASTNode[2]
-   if nValues < 1 then
-      -- Return the instantiation only.
-      return instantiate
-   else
-      assign = assign:sub(1, string.len(assign) - 2) .. "], ["
-      for i = 1, nValues do
+   -- Add RHS expressions.
+   local nRHS = #ASTNode[2]
+   if nRHS > 0 then
+      for i = 1, nRHS do
          assign = assign .. ASTNodeToProlog(ASTNode[2][i]) .. ", "
       end
-      assign = assign:sub(1, string.len(assign) - 2) .. "])"
-
-      -- Return the instantiation and assignment.
-      return instantiate .. assign
+      assign = assign:sub(1, string.len(assign) - 2)
    end
+
+   -- Return the assignments.
+   return assign .. "])"
 end
 
 -- Convert an operator node into Prolog.
@@ -444,15 +436,14 @@ convert["Fornum"] = function(ASTNode)
    local error = "functioncall(variable('error'), [stringtype('Expression is not a number.')])"
 
    return
-   "do([localvariable('var'), localvariable('limit'), localvariable('step'), " ..
-   "assign([variable('var'), variable('limit'), variable('step')], [" ..
+   "do([assign([localvariable('var'), localvariable('limit'), localvariable('step')], [" ..
       "functioncall(variable('tonumber'), [" .. var .. "]), " ..
       "functioncall(variable('tonumber'), [" .. limit .. "]), " ..
       "functioncall(variable('tonumber'), [" .. step .. "]) " ..
    "]), " ..
    "if(unop(not, binop(and, variable('var'), binop(and, variable('limit'), variable('step')))), " .. error .. ", do([])), " ..
    "while(" .. condition .. ", [" ..
-      "localvariable('" .. ASTNode[1][1] .. "'), assign([variable('" .. ASTNode[1][1] .. "')], [variable('var')]), " ..
+      "assign([localvariable('" .. ASTNode[1][1] .. "')], [variable('var')]), " ..
       block ..
       "assign([variable('var')], [binop(add, variable('var'), variable('step'))])" ..
    "])])"
@@ -472,8 +463,14 @@ end
 --    end
 -- end
 convert["Forin"] = function(ASTNode)
-   -- Get variable and expression lists.
-   local variables = ASTNodeToProlog(ASTNode[1])
+   -- Get the local variable list (var_1, var_2, ..., var_n).
+   local variables = ""
+   for i = 1, #ASTNode[1] do
+      variables = variables .. "local" .. ASTNodeToProlog(ASTNode[1][i]) .. ", "
+   end
+   variables = variables:sub(1, string.len(variables) - 2)
+
+   -- Get the expression list.
    local expressions = ASTNodeToProlog(ASTNode[2])
 
    -- Store the expression that accesses var_1 because this will be used
@@ -481,11 +478,6 @@ convert["Forin"] = function(ASTNode)
    local var_1 = ASTNodeToProlog(ASTNode[1][1])
 
    -- Instantiation and assignment of local variables.
-   local instantiate = ""
-   local nLocals = #ASTNode[1]
-   for i = 1, nLocals do
-      instantiate = instantiate .. "local" .. ASTNodeToProlog(ASTNode[1][i]) .. ", "
-   end
    local assign = "assign([" .. variables .. "], [functioncall(variable('f'), " ..
    "[variable('s'), variable('var')])]), "
 
@@ -497,9 +489,8 @@ convert["Forin"] = function(ASTNode)
    end
 
    return
-   "do([localvariable('f'), localvariable('s'), localvariable('var'), " ..
-   "assign([variable('f'), variable('s'), variable('var')], [" .. expressions .. "]), " ..
-   "while(booleantype(true), [" .. instantiate .. assign ..
+   "do([assign([localvariable('f'), localvariable('s'), localvariable('var')], [" .. expressions .. "]), " ..
+   "while(booleantype(true), [" .. assign ..
    "assign([variable('var')], [" .. var_1 .. "]), " ..
    "if(binop(eq, variable('var'), niltype(nil)), break, do([]))" .. block .. "])])"
 end
@@ -546,16 +537,11 @@ end
 -- A local function definition is a syntactic sugar. The expression
 -- 'local f = function() body end' translates to 'local f; f = function() body end'
 convert["Localrec"] = function(ASTNode)
-   local variable = ASTNodeToProlog(ASTNode[1])
-   local value  = ASTNodeToProlog(ASTNode[2])
+   local variable = "local" .. ASTNodeToProlog(ASTNode[1])
+   local instantiate = "assign([" .. variable ..  "], [niltype(nil)]), "
+   local assign = "assign([" .. variable ..  "], [" .. ASTNodeToProlog(ASTNode[2]) .. "])"
 
-   -- Create the localvariable statement.
-   local instantiate = "local" .. variable:sub(1, string.len(variable) - 1) .. "), "
-
-   -- Create the assign statement.
-   local assign = "assign([" .. variable .. "], [" .. value .. "])"
-
-   -- Return the concatenation of both statements.
+   -- Return the concatenation of both assign statements.
    return instantiate .. assign
 end
 

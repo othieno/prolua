@@ -71,6 +71,11 @@ evaluate_lhs([ContextPath, Pool], variable(Name), [ContextPath, Pool], [Locator,
 
 
 
+% Evaluate a left-hand side local variable.
+evaluate_lhs([ContextPath, Pool], localvariable(Name), [ContextPath, Pool], [ContextPath, Name]).
+
+
+
 % Evaluate a left-hand side table field accessor.
 evaluate_lhs(ENV0, access(E1, E2), ENVn, Result) :-
    evaluate_rhs(ENV0, E1, ENV1, VS_E1),
@@ -1156,12 +1161,6 @@ evaluate_stat(ENV0, if(Expression, Strue, Sfalse), ENV2, CTRL, Result) :-
 
 
 
-% Create a variable in the current execution context (scope).
-evaluate_stat([ContextPath, Pool], localvariable(Name), ENV, continue, []) :-
-   setValue([ContextPath, Pool], ContextPath, Name, niltype(nil), ENV).
-
-
-
 % The return statement.
 evaluate_stat(ENV0, return(Expressions), ENV1, CTRL, Result) :-
    evaluate_rhs(ENV0, expressions(Expressions), ENV1, Result),
@@ -1442,8 +1441,7 @@ evaluate_stat(ENV0, intrinsic(ipairs, EXP), ENV1, CTRL, Result) :-
       ['table', 'index'],
       [
          assign([variable('index')], [binop(add, variable('index'), numbertype(1))]),
-         localvariable('value'),
-         assign([variable('value')], [access(variable('table'), variable('index'))]),
+         assign([localvariable('value')], [access(variable('table'), variable('index'))]),
          if(unop(not, binop(eq, variable('value'), niltype(nil))),
             do([return([variable('index'), variable('value')])]),
             do([return([niltype(nil)])])

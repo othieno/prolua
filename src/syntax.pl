@@ -185,6 +185,11 @@ functioncall(Expression, Expressions) :-
    expressions(Expressions).
 
 
+% Local variable lookup.
+localvariable(Name) :-
+   name(Name).
+
+
 % The expression set.
 expression(Expression) :- value(Expression), !.
 expression(tableconstructor(Fields)) :- tableconstructor(Fields), !.
@@ -196,6 +201,7 @@ expression(unop(Operator, Expression)) :- unop(Operator, Expression), !.
 expression(binop(Operator, LHS, RHS)) :- binop(Operator, LHS, RHS), !.
 expression(functiondef(Parameters, Statements)) :- functiondef(Parameters, Statements), !.
 expression(functioncall(Expression, Expressions)) :- functioncall(Expression, Expressions), !.
+expression(localvariable(Name)) :- localvariable(Name), !.
 
 
 
@@ -232,11 +238,6 @@ if(Expression, True, False) :-
    statement(False).
 
 
-% Local variable declaration.
-localvariable(Name) :-
-   name(Name).
-
-
 % Return statement.
 return(Expressions) :-
    expressions(Expressions).
@@ -249,6 +250,5 @@ statement(do(Statements)) :- do(Statements).
 statement(while(Expression, Statements)) :- while(Expression, Statements).
 statement(repeat(Expression, Statements)) :- repeat(Expression, Statements).
 statement(if(Expression, True, False)) :- if(Expression, True, False).
-statement(localvariable(Name)) :- localvariable(Name).
 statement(return(Expressions)) :- return(Expressions).
 statement(break).
