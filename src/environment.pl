@@ -115,9 +115,11 @@ getContext(ContextPath, Pool, Context) :-
 removeContext(ContextPath, OldPool, NewPool) :-
    OldPool = pool(Offset, [[Address, References, OldGraph] | MemoryBlocks]),
    NewPool = pool(Offset, [[Address, References, NewGraph] | MemoryBlocks]),
-   dag_getNode(OldGraph, ContextPath, node(context(_, Lifetime), _)),
+   dag_getNode(OldGraph, ContextPath, node(context(_, _), _)),
    NewGraph = OldGraph.
 /*
+   dag_getNode(OldGraph, ContextPath, node(context(_, Lifetime), _)),
+   NewGraph = OldGraph,
    (
       % The context can be deleted iff its lifetime is less than 0.
       Lifetime > 0 ->
