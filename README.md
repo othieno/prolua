@@ -22,15 +22,15 @@ with the first being the name of the Lua program to interpret, and the rest bein
 An example execution would be
 
 ```bash
-./prolua.sh printargs.lua hello world
+./prolua.sh samples/printargs.lua hello world
 ```
 
 Prolua is developed under Debian GNU/Linux and __the prolua.sh script is written to work with bash__. This means
-that it won't work under Windows but should, theoretically, work under any Unix-like system.
+that it won't work under Windows but should, theoretically, work under any Unix-like system, e.g. Mac OS.
 
 
-Layout
-------
-The folders provided with this software are structured in the following manner
+Hierarchy
+---------
+The folders provided with this software are structured in the following manner:
 * __samples__ contains sample Lua source code files used to test Prolua.
 * __src__ contains the source code tree.
