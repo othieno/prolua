@@ -20,21 +20,27 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 -- THE SOFTWARE.
 
-local x, y, z = 0, 0, 0
+local x, y, z, w = 0, 0, 0, 0
+local numbers = {["one"] = 1, ["two"] = 2, ["three"] = 3}
 
 -- While.
 while (x <= 10) do
-	x = x + 1;
+   x = x + 1
 end;
 
 -- Repeat until.
 repeat
-	y = y + 1;
-until (y == 10);
+   y = y + 1;
+until (y == 10)
 
 -- Numeric for.
 for i = 0, y, 0.5 do
-	z = z + i
+   z = z + i
 end
 
-return x, y, z;
+-- Generic for.
+for k, number in pairs(numbers) do
+   w = w + number
+end
+
+return x, y, z, w
