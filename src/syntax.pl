@@ -135,7 +135,7 @@ value(referencetype(Type, Address)) :- referencetype(Type, Address).
 % Expressions.
 % ------------------------------------------------------------------------------
 
-% Table constructor.
+% Table constructor expression.
 tableconstructor([]).
 tableconstructor(fields(Fields)) :-
    fields(Fields), !.
@@ -148,12 +148,12 @@ enclosed(Expression) :-
    expression(Expression).
 
 
-% Variable expressions.
+% Variable accessor.
 variable(Name) :-
    name(Name).
 
 
-% Field accessor expression.
+% Field accessor.
 access(Expression, Key) :-
    expression(Expression),
    expression(Key),
@@ -185,7 +185,7 @@ functioncall(Expression, Expressions) :-
    expressions(Expressions).
 
 
-% Local variable lookup.
+% Local variable accessor.
 localvariable(Name) :-
    name(Name).
 
