@@ -29,8 +29,7 @@
  * respectively, which will then be passed onto the main/2 predicate.
  */
 main :-
-   current_prolog_flag(argv, Arguments),
-   append(_, [--, Filename | _], Arguments),
+   current_prolog_flag(argv, [Filename | _]),
    consult(Filename),
    chunk(Statements),
    arguments(CommandLineArguments),

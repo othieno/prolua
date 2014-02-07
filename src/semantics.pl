@@ -31,26 +31,21 @@
 evaluate_lhs(ENV0, expressions([]), ENV0, []).
 evaluate_lhs(ENV0, expressions([E | ES]), ENVn, Result) :-
    evaluate_lhs(ENV0, E, ENV1, VS_E),
-   evaluate_lhs(ENV1, expressions(ES), ENV2, VS_ES),
    (
-      VS_E \= error(_), VS_ES \= error(_) ->
+      VS_E \= error(_) ->
       (
-         ENVn = ENV2,
-         Result = [VS_E | VS_ES]
-      );
-      (
-         VS_E = error(_) ->
+         evaluate_lhs(ENV1, expressions(ES), ENVn, VS_ES),
          (
-            ENVn = ENV1,
-            Result = VS_E
-         );
-         (
-            ENVn = ENV2,
+            VS_ES \= error(_) ->
+            Result = [VS_E | VS_ES];
             Result = VS_ES
          )
+      );
+      (
+         ENVn = ENV1,
+         Result = VS_E
       )
    ).
-
 
 
 % Evaluate a left-hand side variable.
@@ -1308,7 +1303,7 @@ evaluate_stat(ENV0, intrinsic(tonumber, E), ENV1, CTRL, Result) :-
 
 
 % The tostring function.
-evaluate_stat(ENV0, intrinsic(tostring, E), ENV1, CTRL, Result) :-
+evaluate_stat(ENV0, intrinsic(tostring, E), ENVn, CTRL, Result) :-
    evaluate_rhs(ENV0, E, ENV1, Values),
    (
       Values \= error(_) ->
