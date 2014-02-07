@@ -1,7 +1,7 @@
 Prolua
 ======
 
-Copyright (c) 2013 Jeremy Othieno.
+Copyright (c) 2013-2014 Jeremy Othieno.
 
 Prolua is available under the [MIT License](https://github.com/supranove/prolua/blob/master/LICENSE.md#the-mit-license-mit).
 
