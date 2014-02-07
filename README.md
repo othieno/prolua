@@ -9,7 +9,7 @@ Requirements
 ------------
 Prolua requires [__SWI-Prolog__](http://www.swi-prolog.org/Download.html). Additionally, Prolua requires a Lua
 interpreter (lua) and compiler (luac) that implement the [__5.1 specification__](http://www.lua.org/manual/5.1/), a current version of which can be found [__here__](http://www.lua.org/versions.html#5.1).
-The interpreter is used to run the lua2prolog script which generates and abstract syntax tree, while the compiler
+The interpreter is used to run the __lua2prolog.lua__ script which generates an abstract syntax tree, while the compiler
 is used solely to check for any syntax errors in a Lua script.
 
 Prolua has not been tested with Lua programs that adhere to the 5.0 specification or less and as such, I cannot guarantee they
